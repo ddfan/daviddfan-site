@@ -12,7 +12,7 @@
 <div class="top"><a href="../index.html">← Home</a><span class="stat">inspired by DARPA RACER</span></div>
 <div class="kicker">Game · Off-road racing</div>
 <h1>Off-road Racer</h1>
-<p class="lead">Reach all six checkpoints as fast as you can across unmapped terrain. Your sensors only see what the land lets them: hills and thick vegetation hide what is beyond. The yellow arrow points at the next checkpoint, but the straight line is rarely the quickest way.</p>
+<p class="lead">Reach all six checkpoints as fast as you can. You only see what your sensors can see.</p>
 <div class="stage">
 <canvas id="c" width="768" height="480"></canvas>
 <div class="chips">
@@ -23,11 +23,8 @@
   <div class="chip"><span>Best</span><b id="s-best">–</b></div>
 </div>
 </div>
-<div class="card2" style="margin-top:14px"><h3>How to play</h3>
-    <div class="legend"><span><i style="background:#bea678"></i>trail (speed boost)</span><span><i style="background:#aa966c"></i>game trail</span><span><i style="background:#7ea05c"></i>grass</span><span><i style="background:#587a46"></i>brush</span><span><i style="background:#3a5c3a"></i>forest (slowest)</span><span><i style="background:#4e8ab8"></i>creek (bogs you down)</span><span><i style="background:#705c44"></i>ditch (bogs you down)</span></div>
-    <p><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake and reverse · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> handbrake · <kbd>R</kbd> restart.</p>
-    <p>Trails give you a speed boost, but they are not always there: a good road can narrow to a game trail and disappear into the brush, then reappear further on. Creeks and ditches are very slow to cross and can leave you stuck, so hit them slowly and reverse out if you bog down. Forest and brush slow you, uphill slows you, and hills block your view.</p>
-</div>
+<div class="legend" style="margin-top:14px"><span><i style="background:#bea678"></i>trail (boost)</span><span><i style="background:#aa966c"></i>game trail</span><span><i style="background:#7ea05c"></i>grass</span><span><i style="background:#587a46"></i>brush</span><span><i style="background:#3a5c3a"></i>forest</span><span><i style="background:#4e8ab8"></i>creek</span><span><i style="background:#705c44"></i>ditch</span></div>
+<p class="keys"><kbd>↑</kbd> gas · <kbd>↓</kbd> brake / reverse · <kbd>←</kbd><kbd>→</kbd> steer · <kbd>Space</kbd> handbrake · <kbd>R</kbd> restart. Creeks and ditches bog you down.</p>
 </div>
 <script>
 const M=160,CP=16,VW=48,VH=30,cv=document.getElementById('c'),x=cv.getContext('2d'),W=cv.width,H=cv.height,HS=30,RMAX=19,NCP=6,$=i=>document.getElementById(i);
