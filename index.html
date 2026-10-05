@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>David D. Fan</title>
-<meta name="description" content="David D. Fan, CTO at Field AI.">
+<meta name="description" content="David D. Fan is CTO of Field AI. He builds autonomous robots for the field and previously led work on DARPA SubT and RACER at NASA JPL and NIWC.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Fraunces:opsz,wght@9..144,400&display=swap" rel="stylesheet">
@@ -18,13 +18,142 @@ h1{font:400 clamp(40px,8vw,64px)/1.05 Fraunces,Georgia,serif;letter-spacing:-.02
 p{margin:0 0 12px;font-size:20px}
 .mute{color:var(--mute);font-size:16px;margin-top:28px}
 a{color:var(--accent);text-underline-offset:3px}
+header{padding:28px 0;display:flex;justify-content:flex-end;align-items:center;font-size:15px}
+header nav a{margin-left:22px;color:var(--mute);text-decoration:none}header nav a:hover{color:var(--text)}
+.hero{padding:72px 0 56px}
+h1{font:400 clamp(32px,5vw,46px)/1.05 Fraunces,Georgia,serif;letter-spacing:-.02em;margin:0 0 20px}
+.hero-top{display:flex;align-items:center;gap:26px;margin:0 0 28px}
+.hero-top h1{margin:0}
+@media(max-width:520px){.headshot{width:104px;height:104px}.hero-top{gap:18px}}
+.hero p{font-size:21px;line-height:1.55;max-width:620px;margin:0 0 14px}
+.headshot{width:136px;height:136px;flex:none;border-radius:50%;object-fit:cover;object-position:50% 20%;background:#fff;display:block;margin:0}
+.hero .sub{color:var(--mute);font-size:17px}
+section{padding:40px 0}
+h2{font:400 28px/1.2 Fraunces,Georgia,serif;margin:0 0 24px}
+.card{background:var(--card);border-radius:20px;overflow:hidden;margin-bottom:20px}
+.card .media{aspect-ratio:16/9;background:#000}
+.card .media iframe{width:100%;height:100%;border:0;display:block}
+.card .body{padding:22px 26px 26px}
+.card .k{font-size:13px;color:var(--accent);font-weight:500;margin-bottom:4px;display:block}
+.card h3{font:400 23px/1.25 Fraunces,Georgia,serif;margin:0 0 8px}
+.card p{margin:0;color:var(--mute)}
+.pub{padding:16px 0;border-bottom:1px solid color-mix(in srgb,var(--text) 10%,transparent)}
+.pub:last-of-type{border:0}
+.pub .t{font-weight:500}.pub .m{color:var(--mute);font-size:15px}
+.grp{font:500 14px/1.2 "DM Sans",system-ui,sans-serif;color:var(--mute);margin:8px 0 2px}
+.grp:not(:first-of-type){margin-top:36px}
+.has-thumb{display:grid;grid-template-columns:128px 1fr;gap:18px;align-items:center}
+.thumb{width:128px;height:80px;object-fit:cover;border-radius:10px;display:block;background:color-mix(in srgb,var(--text) 8%,transparent)}
+@media(max-width:520px){.has-thumb{grid-template-columns:88px 1fr;gap:14px}.thumb{width:88px;height:55px;border-radius:8px}}
+.pub .t a{color:var(--text);text-decoration-color:color-mix(in srgb,var(--text) 25%,transparent)}
+.pub .t a:hover{color:var(--accent);text-decoration-color:var(--accent)}
+header nav{display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+header nav a.egg{display:inline-flex;margin-left:16px;color:var(--mute);transform-origin:50% 85%;animation:jiggle 5.5s ease-in-out infinite}
+header nav a.egg+a.egg{animation-delay:.7s}
+header nav a.egg:hover{color:var(--accent);animation:jiggle-fast .45s ease-in-out infinite}
+@keyframes jiggle{0%,78%,100%{transform:rotate(0)}82%{transform:rotate(-14deg)}86%{transform:rotate(12deg)}90%{transform:rotate(-8deg)}94%{transform:rotate(5deg)}}
+@keyframes jiggle-fast{0%,100%{transform:rotate(-11deg)}50%{transform:rotate(11deg)}}
+@media(prefers-reduced-motion:reduce){header nav a.egg{animation:none}}
+.soon{color:var(--mute)}
+form{display:grid;gap:12px;max-width:500px}
+input,textarea{font:inherit;color:var(--text);background:var(--card);border:1px solid transparent;border-radius:14px;padding:13px 16px;width:100%}
+input:focus,textarea:focus{outline:0;border-color:var(--accent)}
+button{justify-self:start;font:inherit;font-weight:500;background:var(--accent);color:var(--bg);border:0;border-radius:99px;padding:12px 26px;cursor:pointer}
+.hp{position:absolute;left:-9999px}#cf-msg{font-size:14px;color:var(--mute)}
+footer{padding:48px 0 72px;color:var(--mute);font-size:14px}
 </style>
 </head>
 <body>
-<main>
-<h1>David D. Fan</h1>
-<p>Chief Technology Officer at <a href="https://www.fieldai.com">Field AI</a>. Robotics, machine learning and autonomy.</p>
-<p class="mute"><a href="https://scholar.google.com/citations?user=vbhA9hwAAAAJ">Google Scholar</a> · <a href="https://www.linkedin.com/in/david-d-fan-8157a797/">LinkedIn</a> · <a href="mailto:contact@daviddfan.com">contact@daviddfan.com</a></p>
-</main>
+<div class="wrap">
+<header><nav><a href="#work">Work</a><a href="#background">Background</a><a href="#papers">Papers</a><a href="#patents">Patents</a><a href="#talks">Talks</a><a href="#contact">Contact</a><a class="egg" href="play/cave.html" title="Mine Explorer (a little game)" aria-label="Mine Explorer game"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 20.5V13a9.5 9.5 0 0 1 19 0v7.5"/><path d="M8 5.2l1.1 4.3 1.1-3.2M14.3 5.8l1 3.6 1-2.4"/><path d="M9 20.5l1.4-4 1.6 4M15 20.5l1-2.6 1 2.6"/></svg></a><a class="egg" href="play/racer.html" title="Off-road Racer (a little game)" aria-label="Off-road Racer game"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 16v-3.2l2.4-.8 2.2-3.6h7.2l3.1 3.4 3.6.9V16"/><path d="M2.5 16h1.9M8.6 16h6.8M19.6 16h1.9"/><circle cx="6.5" cy="16.4" r="2.1"/><circle cx="17.5" cy="16.4" r="2.1"/><path d="M9 8.6v3.3h5.4l-2.5-3.3"/></svg></a></nav></header>
+
+<div class="hero">
+<div class="hero-top"><img class="headshot" src="headshot.png" alt="David D. Fan" width="136" height="136"><h1>David D. Fan</h1></div>
+<p>I'm currently CTO at <a href="https://www.fieldai.com">Field AI</a>, where I lead the team building Field Foundation Models: autonomy that lets robots work in complex, industrial and messy real-world environments without maps, GPS or predefined paths.</p>
+<p>I've spent my career building robots that leave the lab. Before Field AI, I was a research engineer at <a href="https://www.niwcpacific.navy.mil">Navy NIWC Pacific</a> and a research fellow at <a href="https://www.jpl.nasa.gov">NASA Jet Propulsion Laboratory</a>. At JPL I was co-PI and chief engineer for the team on DARPA's <a href="https://www.darpa.mil/program/robotic-autonomy-in-complex-environments-with-resiliency">RACER</a> program (<a href="https://spectrum.ieee.org/darpa-robot-racer">IEEE Spectrum</a>), and a technical lead on Team CoSTAR in DARPA's <a href="https://www.darpa.mil/program/darpa-subterranean-challenge">Subterranean Challenge</a>, where we won Phase II.</p>
+<p>Before JPL, I did my PhD at Georgia Tech with <a href="https://scholar.google.com/citations?user=dG9MV7oAAAAJ">Evangelos Theodorou</a> in the <a href="https://sites.gatech.edu/acds/">Autonomous Control and Decision Systems Laboratory</a>, co-advised by <a href="https://scholar.google.com/citations?user=36qnUD4AAAAJ">Ali Agha</a>.</p>
+<p>Outside of work, I like to travel, cook, hike and scuba dive.</p>
+<p class="sub"><a href="https://scholar.google.com/citations?user=vbhA9hwAAAAJ">Google Scholar</a> · <a href="https://www.linkedin.com/in/david-d-fan-8157a797/">LinkedIn</a></p>
+</div>
+
+<section id="work"><h2>Work</h2>
+<div class="card"><div class="media"><iframe src="https://www.youtube-nocookie.com/embed/_vDo5YnYs_w" title="Introducing Field Foundation Models" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><div class="body"><span class="k">2022 – present</span><h3>Field AI</h3><p>As CTO, I lead the team building Field Foundation Models, a new kind of AI brain that gives robots real-world risk awareness. It runs across many kinds of robots and is already at work on industrial sites around the world. <a href="https://www.fieldai.com/careers">We're hiring.</a></p></div></div>
+<div class="card"><div class="media"><iframe src="https://www.youtube-nocookie.com/embed/j7bwTUSq9dg" title="FieldAI Highlights from DARPA RACER Program" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><div class="body"><span class="k">DARPA RACER · 2021 – 2025</span><h3>Fast driving, off the road</h3><p>I was co-PI and chief engineer for JPL's RACER team, working with partners at Georgia Tech, MIT, Berkeley and NIWC. We taught vehicles to read rough terrain and drive fast through it, using learned traversability and risk-aware planning. <a href="https://spectrum.ieee.org/darpa-robot-racer">IEEE Spectrum coverage</a></p></div></div>
+<div class="card"><div class="media"><iframe src="https://www.youtube-nocookie.com/embed/s_1roVVAXNU" title="JPL's Team CoSTAR at the DARPA Subterranean Challenge" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div><div class="body"><span class="k">DARPA Subterranean Challenge · NASA JPL</span><h3>Team CoSTAR</h3><p>I was part of JPL's Team CoSTAR, winner of Phase II. Our legged and wheeled robots explored underground tunnels, mines and caves entirely on their own.</p></div></div>
+<div class="card"><div class="body"><span class="k">PhD · Georgia Tech</span><h3>Safe robot planning and control</h3><p>My thesis, <a href="https://repository.gatech.edu/entities/publication/a9254ed6-52ed-41ac-92f2-33fd82335b7a"><em>Safe Robot Planning and Control Using Uncertainty-Aware Deep Learning</em></a>, combined machine learning with classical control and planning so robots can be both capable and safe. It covers tube MPC, Bayesian adaptive control and risk-aware costmaps. Advised by <a href="https://scholar.google.com/citations?user=dG9MV7oAAAAJ">Evangelos Theodorou</a>, co-advised by <a href="https://scholar.google.com/citations?user=36qnUD4AAAAJ">Ali Agha</a>.</p></div></div>
+</section>
+
+<section id="background"><h2>Background</h2>
+<div class="pub"><div class="t">Field AI <span style="color:var(--mute);font-weight:400">· Chief Technology Officer</span></div><div class="m">2022 – present</div></div>
+<div class="pub"><div class="t">Naval Information Warfare Center (SPAWAR) <span style="color:var(--mute);font-weight:400">· Scientist</span></div><div class="m">2021 – 2022 · PI for NIWC's DARPA RACER effort</div></div>
+<div class="pub"><div class="t">NASA Jet Propulsion Laboratory <span style="color:var(--mute);font-weight:400">· Robotics Engineer (Affiliate)</span></div><div class="m">2018 – 2022 · Technical lead on Team CoSTAR; co-PI and chief engineer on DARPA RACER</div></div>
+<div class="pub"><div class="t">Georgia Institute of Technology <span style="color:var(--mute);font-weight:400">· PhD, Robotics</span></div><div class="m">2015 – 2021</div></div>
+<div class="pub"><div class="t">Texas A&amp;M University <span style="color:var(--mute);font-weight:400">· MS, Electrical Engineering</span></div><div class="m">2013 – 2015</div></div>
+<div class="pub"><div class="t">Duke University <span style="color:var(--mute);font-weight:400">· BEng, Biomedical Engineering</span></div><div class="m">2006 – 2009</div></div>
+</section>
+
+<section id="papers"><h2>Selected papers</h2>
+<div class="pub has-thumb"><img class="thumb" src="img/distilling.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2607.17984">Distilling Global Traversability Priors for Image-based Affordance Prediction in Off-road Environments</a></div><div class="m">Sivaprakasam, Triest, Nye, Atha, Khattak, <b>Fan</b>, Wang, et al. · arXiv, 2026</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/mindpalace.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2507.12846">Enter the mind palace: Reasoning and planning for long-term active embodied question answering</a></div><div class="m">Ginting, Kim, Meng, Reinke, Krishna, Kayhani, Peltzer, et al. · arXiv, 2025</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/sbbg.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2401.17191">Semantic belief behavior graph: Enabling autonomous robot inspection in unknown environments</a></div><div class="m">Ginting, <b>Fan</b>, Kim, Kochenderfer, Agha-mohammadi · IROS, 2024</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/roadrunner.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2402.19341">RoadRunner: Learning traversability estimation for autonomous off-road driving</a></div><div class="m">Frey, Patel, Atha, Nubert, <b>Fan</b>, Agha, Padgett, Spieler, et al. · IEEE Transactions on Field Robotics, 2024</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/unrealnet.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2407.08720">UNRealNet: Learning uncertainty-aware navigation features from high-fidelity scans of real environments</a></div><div class="m">Triest, <b>Fan</b>, Scherer, Agha-Mohammadi · ICRA, 2024</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/mppi.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2404.03094">Low frequency sampling in model predictive path integral control</a></div><div class="m">Vlahov, Gibson, <b>Fan</b>, Spieler, Agha-mohammadi, et al. · IEEE Robotics and Automation Letters, 2024</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/nebula.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2103.11470">NeBula: Team CoSTAR's robotic autonomy solution that won Phase II of the DARPA Subterranean Challenge</a></div><div class="m">Agha, Otsu, Morrell, <b>Fan</b>, Thakker, Santamaria-Navarro, et al. · Field Robotics, 2022</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/step.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2103.02828">STEP: Stochastic traversability evaluation and planning for risk-aware off-road navigation</a></div><div class="m"><b>Fan</b>, Otsu, Kubo, Dixit, Burdick, Agha-mohammadi · RSS, 2021</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/costmaps.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2107.11722">Learning risk-aware costmaps for traversability in challenging environments</a></div><div class="m"><b>Fan</b>, Dey, Agha-Mohammadi, Theodorou · IEEE Robotics and Automation Letters, 2021</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/spot.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2010.09259">Autonomous Spot: Long-range autonomous exploration of extreme environments with legged locomotion</a></div><div class="m">Bouman, Ginting, Alatur, Palieri, <b>Fan</b>, Touma, et al. · IROS, 2020</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/tubempc.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2002.01587">Deep learning tubes for tube MPC</a></div><div class="m"><b>Fan</b>, Agha-mohammadi, Theodorou · Robotics: Science and Systems, 2020</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/bayesian.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/1910.02325">Bayesian learning-based adaptive control for safety critical systems</a></div><div class="m"><b>Fan</b>, Nguyen, Thakker, Alatur, Agha-mohammadi, Theodorou · ICRA, 2020</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/hybrid.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2009.05631">Autonomous hybrid ground/aerial mobility in unknown environments</a></div><div class="m"><b>Fan</b>, Thakker, Bartlett, Miled, Kim, Theodorou, et al. · IROS, 2019</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/contact.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/1909.00079">Contact inertial odometry: Collisions are your friend</a></div><div class="m">Lew, Emmei, <b>Fan</b>, Bartlett, Santamaria-Navarro, Thakker, et al. · ISRR, 2019</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/drones.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://arxiv.org/abs/2008.09679">Towards resilient autonomous navigation of drones</a></div><div class="m">Santamaria-Navarro, Thakker, <b>Fan</b>, Morrell, et al. · ISRR, 2019</div></div></div>
+<div class="pub"><div class="t"><a href="https://www.jneurosci.org/content/32/16/5534.short">Mechanisms of action selection and timing in substantia nigra neurons</a></div><div class="m"><b>Fan</b>, Rossi, Yin · Journal of Neuroscience, 2012</div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/wireless.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0022033">A wireless multi-channel recording system for freely behaving mice and rats</a></div><div class="m"><b>Fan</b>, Rich, Holtzman, Ruther, Dalley, Lopez, Rossi, et al. · PLoS ONE, 2011</div></div></div>
+<p><a href="https://scholar.google.com/citations?user=vbhA9hwAAAAJ&sortby=pubdate">All publications on Google Scholar →</a></p>
+</section>
+
+<section id="patents"><h2>Patents</h2>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260097506A1/en">Generating test environments to optimize performance of robots</a></div><div class="m">US Patent Application 19/351,428 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260097496A1/en">Real-time task prioritization in robots based on user roles</a></div><div class="m">US Patent Application 19/350,467 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260099148A1/en">Real-time multi-robot collaboration in dynamic environments</a></div><div class="m">US Patent Application 19/352,764 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260073719A1/en">Constructing dynamic environment data with automated annotation</a></div><div class="m">US Patent Application 19/326,060 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260072435A1/en">Machine learning-based system and method for generating semantic maps for offroad autonomy machines</a></div><div class="m">US Patent Application 19/319,387 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260070218A1/en">Real-time localization and pose correction of a robot</a></div><div class="m">US Patent Application 19/326,825 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260064122A1/en">Artificial intelligence-based system and method for object detection and navigation</a></div><div class="m">US Patent Application 19/320,757 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260064126A1/en">Optimizing real-time terrain classification for robotic deployment in adverse operational conditions</a></div><div class="m">US Patent Application 19/320,788 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20260063444A1/en">Real-time map generation in unstructured environments</a></div><div class="m">US Patent Application 19/319,353 · 2026</div></div>
+<div class="pub"><div class="t"><a href="https://patents.google.com/patent/US20250252306A1/en">System and method for uncertainty-aware traversability estimation with optimum-fidelity scan data</a></div><div class="m">US Patent Application 19/045,594 · 2025</div></div>
+<p><a href="https://scholar.google.com/citations?user=vbhA9hwAAAAJ&sortby=pubdate">All on Google Scholar →</a></p>
+</section>
+
+<section id="talks"><h2>Talks &amp; panels</h2>
+<div class="pub has-thumb"><img class="thumb" src="img/ev-aima.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://www.ai-meets-autonomy.com/">3rd AI Meets Autonomy: Vision, Language, and Autonomous Systems</a></div><div class="m">Invited talk · IROS 2026 workshop, Pittsburgh · October 1, 2026</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/ev-iros.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://construction-robots.github.io/">5th Workshop on Future of Construction: Collaborative Robots for Fabrication, Manufacturing, and Inspection</a></div><div class="m">Industry lightning talk on Field Foundation Models · IROS 2026 workshop, Pittsburgh · September 27, 2026</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/ev-bridging.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://bridging-navigation.github.io/website/">Learning Across Navigation Fields: Challenges and Future Work</a></div><div class="m">Panelist · IROS 2026 workshop, Pittsburgh · September 27, 2026</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/ev-roscon.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://roscon.ros.org/2026/">ROSCon 2026</a></div><div class="m">Lightning talk · Toronto</div></div></div>
+<div class="pub has-thumb"><img class="thumb" src="img/ev-corl.jpg" alt="" loading="lazy" width="320" height="200"><div><div class="t"><a href="https://sites.google.com/view/corl-2025-safe-rol-workshop">2nd Workshop on Safe and Robust Robot Learning for Operation in the Real World (SAFE-ROL)</a></div><div class="m">Invited talk · CoRL 2025 workshop, Seoul · September 27, 2025</div></div></div>
+</section>
+
+<section id="contact"><h2>Say hello</h2>
+<form id="cf" action="https://api.web3forms.com/submit" method="POST">
+<input type="hidden" name="access_key" value="56263e25-d30d-431f-a925-08bc51d784b4">
+<input type="hidden" name="subject" value="New message from daviddfan.com">
+<input type="hidden" name="from_name" value="daviddfan.com">
+<input type="checkbox" name="botcheck" class="hp" tabindex="-1" autocomplete="off">
+<input name="name" placeholder="Your name" required>
+<input name="email" type="email" placeholder="Your email" required>
+<textarea name="message" rows="5" placeholder="Message" required></textarea>
+<div><button type="submit">Send</button> <span id="cf-msg"></span></div>
+</form></section>
+
+<footer>© <span id="yr"></span></footer>
+</div>
+<script>
+document.getElementById('yr').textContent=new Date().getFullYear();
+document.getElementById('cf').addEventListener('submit',async e=>{e.preventDefault();const f=e.target,m=document.getElementById('cf-msg');m.textContent='Sending…';
+try{const r=await fetch(f.action,{method:'POST',headers:{Accept:'application/json'},body:new FormData(f)});const j=await r.json();
+if(j.success){m.textContent='Sent. Thank you!';f.reset()}else m.textContent='Something went wrong.'}catch{m.textContent='Network error.'}});
+</script>
 </body>
 </html>
