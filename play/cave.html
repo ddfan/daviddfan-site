@@ -12,7 +12,7 @@
 <div class="top"><a href="../index.html">← Home</a><span class="stat">inspired by DARPA SubT</span></div>
 <div class="kicker">Game · Multi-robot exploration</div>
 <h1>Mine Explorer</h1>
-<p class="lead">You have two minutes, starting with your first command, to map an unknown mine with a fleet of four robots. Select a robot, click where it should go, and it finds its own way there, dropping comms relays behind it. Discoveries only reach the base while a robot is in comms range, and you can only command robots that are connected.</p>
+<p class="lead">Map the mine with four robots in two minutes. Click a robot, then click the map.</p>
 <div class="stage">
 <canvas id="c" width="768" height="480"></canvas>
 <div class="robots" id="robots"></div>
@@ -25,15 +25,11 @@
 </div>
 <div class="bar" style="padding:2px 6px 8px;align-items:center">
   <button id="spd">Speed 1×</button><button id="pause">Pause</button><button id="recall">Recall selected</button><button id="restart">Restart (new mine)</button>
-  <label class="stat" style="margin-left:auto">Battery reserve when returning <b id="rtcv">12%</b> <input type="range" id="rtc" min="0" max="40" value="12" style="vertical-align:middle;width:120px"></label>
+  <label class="stat" style="margin-left:auto">Return reserve <b id="rtcv">12%</b> <input type="range" id="rtc" min="0" max="40" value="12" style="vertical-align:middle;width:120px"></label>
 </div>
 </div>
-<div class="card2" style="margin-top:14px"><h3>How to play</h3>
-  <div class="legend"><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.55)"></i>comms range</span><span><i style="background:#6fbf73"></i>reported artifact</span><span><i style="background:#c8462a"></i>no link</span></div>
-  <p><b style="color:var(--text)">Click a robot</b> (or press <kbd>1</kbd>–<kbd>4</kbd>) to select it, then <b style="color:var(--text)">click the map</b> to send it to that area. It plans through unexplored space and replans when it hits rock. Once it reaches the area it keeps exploring nearby on its own.</p>
-  <p>Robots drop relays automatically near the edge of comms range. Anything a robot sees outside comms is only uploaded when it comes back into range, and a robot out of range cannot be commanded: it carries on with its last order or keeps exploring. It automatically heads back toward comms once its battery is only just enough to get there, plus the reserve you set with the slider.</p>
-  <p>Batteries drain with time and drain faster while moving, and a robot that runs flat is lost for good. Score: 100 per reported artifact, 25 per surviving robot, plus the percent of the mine mapped. <kbd>Space</kbd> pauses, <kbd>R</kbd> recalls the selected robot, <kbd>N</kbd> restarts.</p>
-</div>
+<div class="legend" style="margin-top:14px"><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.55)"></i>comms range</span><span><i style="background:#6fbf73"></i>reported</span><span><i style="background:#c8462a"></i>no link</span></div>
+<p class="keys">Robots explore on their own, drop relays, and head back when battery runs low. Findings upload only in comms range. <kbd>1</kbd>–<kbd>4</kbd> select · <kbd>R</kbd> recall · <kbd>Space</kbd> pause · <kbd>N</kbd> restart</p>
 </div>
 <script>
 const GW=128,GH=80,CS=6,cv=document.getElementById('c'),x=cv.getContext('2d');
@@ -157,7 +153,7 @@ function draw(){
     if(!r.link){x.strokeStyle='#c8462a';x.lineWidth=2;x.beginPath();x.arc(cx,cy,7,0,7);x.stroke();x.lineWidth=1}
     if(r.id==sel){x.strokeStyle='#fff';x.beginPath();x.arc(cx,cy,9,0,7);x.stroke()}
     x.fillStyle='#1a1a14';x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText(r.id+1,cx,cy+3)});
-  if(!started&&state=='play'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-230,cv.height-50,460,30);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText('Select a robot and click the map to begin. The clock starts with your first command.',cv.width/2,cv.height-30)}
+  if(!started&&state=='play'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-230,cv.height-50,460,30);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText('Click the map to start the clock',cv.width/2,cv.height-30)}
   if(msgT>0){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-170,10,340,28);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText(msg,cv.width/2,29)}
   if(state=='over'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,cv.width,cv.height);x.fillStyle='#fff';x.textAlign='center';x.font='500 28px DM Sans,sans-serif';
     x.fillText((ticks>=MAXT?'Time is up: ':'Mission over: ')+score()+' points',cv.width/2,cv.height/2-8);x.font='16px DM Sans,sans-serif';x.fillText(arts.filter(a=>a.reported).length+' of '+NART+' artifacts reported · '+robots.filter(r=>r.alive).length+' robots survived · press N to play a new mine',cv.width/2,cv.height/2+22)}}
