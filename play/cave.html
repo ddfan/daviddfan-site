@@ -12,7 +12,7 @@
 <div class="top"><a href="../index.html">← Home</a><span class="stat">inspired by DARPA SubT</span></div>
 <div class="kicker">Game · Multi-robot exploration</div>
 <h1>Mine Explorer</h1>
-<p class="lead">You have two minutes to map an unknown mine with a fleet of four robots. Select a robot, click where it should go, and it finds its own way there, dropping comms relays behind it. Discoveries only reach the base while a robot is in comms range, and you can only command robots that are connected.</p>
+<p class="lead">You have two minutes, starting with your first command, to map an unknown mine with a fleet of four robots. Select a robot, click where it should go, and it finds its own way there, dropping comms relays behind it. Discoveries only reach the base while a robot is in comms range, and you can only command robots that are connected.</p>
 <div class="stage">
 <canvas id="c" width="768" height="480"></canvas>
 <div class="robots" id="robots"></div>
@@ -40,7 +40,7 @@ const GW=128,GH=80,CS=6,cv=document.getElementById('c'),x=cv.getContext('2d');
 const idx=(i,j)=>j*GW+i,inb=(i,j)=>i>0&&j>0&&i<GW-1&&j<GH-1,$=i=>document.getElementById(i);
 const COMMS=15,BATT=330,IDLE_DRAIN=.25,MOVE_DRAIN=1,RELAYS=4,SENSE=6,NART=10,NROB=4,GR=3,TPS=7,TICK=1/TPS,MISSION=120,MAXT=MISSION*TPS;
 const RCOL=['#e0b84a','#e9805a','#b78cd8','#5cc4b5'];
-let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,floorTotal=0,best=0,rtc=12,cards=[];
+let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,floorTotal=0,best=0,rtc=12,cards=[],started=false;
 try{best=+localStorage.getItem('mineBest')||0}catch(e){}
 const rnd=n=>Math.floor(Math.random()*n);
 function carveRect(x0,y0,x1,y1){for(let j=y0;j<=y1;j++)for(let i=x0;i<=x1;i++)if(inb(i,j))wall[idx(i,j)]=0}
@@ -75,7 +75,7 @@ function genMine(){
   seen=new Uint8Array(GW*GH);
   robots=[];for(let n=0;n<NROB;n++){const px=base[0]-1+(n%2)*2,py=base[1]-1+((n/2)|0)*2;
     robots.push({id:n,x:px,y:py,battery:BATT,relays:RELAYS,goal:null,path:[],state:'idle',alive:true,know:new Uint8Array(GW*GH),dirty:new Set(),found:new Set(),link:true,outTicks:0,returning:false,explore:false,ex:null,lastLink:[px,py]})}
-  nodes=[base.slice()];comms=bfs(nodes,COMMS);sel=0;state='play';ticks=0;tickAcc=0;paused=false;msgT=0;
+  nodes=[base.slice()];comms=bfs(nodes,COMMS);sel=0;state='play';started=false;ticks=0;tickAcc=0;paused=false;msgT=0;
   $('pause').textContent='Pause';$('pause').classList.remove('on');
   for(const r of robots){sense(r);flush(r)}
   buildCards()}
@@ -157,6 +157,7 @@ function draw(){
     if(!r.link){x.strokeStyle='#c8462a';x.lineWidth=2;x.beginPath();x.arc(cx,cy,7,0,7);x.stroke();x.lineWidth=1}
     if(r.id==sel){x.strokeStyle='#fff';x.beginPath();x.arc(cx,cy,9,0,7);x.stroke()}
     x.fillStyle='#1a1a14';x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText(r.id+1,cx,cy+3)});
+  if(!started&&state=='play'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-230,cv.height-50,460,30);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText('Select a robot and click the map to begin. The clock starts with your first command.',cv.width/2,cv.height-30)}
   if(msgT>0){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-170,10,340,28);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText(msg,cv.width/2,29)}
   if(state=='over'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,cv.width,cv.height);x.fillStyle='#fff';x.textAlign='center';x.font='500 28px DM Sans,sans-serif';
     x.fillText((ticks>=MAXT?'Time is up: ':'Mission over: ')+score()+' points',cv.width/2,cv.height/2-8);x.font='16px DM Sans,sans-serif';x.fillText(arts.filter(a=>a.reported).length+' of '+NART+' artifacts reported · '+robots.filter(r=>r.alive).length+' robots survived · press N to play a new mine',cv.width/2,cv.height/2+22)}}
@@ -171,19 +172,19 @@ function updateUI(){
   $('s-rep').textContent=arts.filter(a=>a.reported).length+' / '+NART;$('s-alive').textContent=robots.filter(r=>r.alive).length;$('s-map').textContent=Math.round(mapped()*100)+'%';
   const left=Math.max(0,Math.ceil((MAXT-ticks)/TPS));$('s-time').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('s-best').textContent=best?best+' pts':'–'}
 let last=performance.now(),uiT=0;
-function loop(now){const dt=(now-last)/1000;last=now;if(state=='play'&&!paused){tickAcc+=Math.min(dt,.1)*speed;while(tickAcc>=TICK&&state=='play'){tickAcc-=TICK;tick()}}
+function loop(now){const dt=(now-last)/1000;last=now;if(state=='play'&&!paused&&started){tickAcc+=Math.min(dt,.1)*speed;while(tickAcc>=TICK&&state=='play'){tickAcc-=TICK;tick()}}
   if(msgT>0)msgT-=dt;uiT+=dt;if(uiT>.2){uiT=0;updateUI()}draw();requestAnimationFrame(loop)}
 cv.addEventListener('pointerdown',e=>{if(state!='play')return;const rc=cv.getBoundingClientRect(),i=Math.floor((e.clientX-rc.left)/rc.width*GW),j=Math.floor((e.clientY-rc.top)/rc.height*GH);
   const hit=robots.find(r=>r.alive&&Math.hypot(r.x-i,r.y-j)<=2);if(hit){sel=hit.id;updateUI();return}
   const r=robots[sel];if(!r||!r.alive||!inb(i,j))return;
   if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}
   if(seen[idx(i,j)]&&wall[idx(i,j)]){msg='That is solid rock';msgT=1.5;return}
-  r.goal=[i,j];r.path=[];r.state='moving';r.returning=false;r.explore=true;r.ex=null;updateUI()});
+  r.goal=[i,j];r.path=[];r.state='moving';r.returning=false;r.explore=true;r.ex=null;started=true;updateUI()});
 $('spd').onclick=e=>{speed=speed==1?2:speed==2?4:1;e.target.textContent='Speed '+speed+'×'};
 $('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume':'Pause';e.target.classList.toggle('on',paused)};
 $('recall').onclick=recall;$('restart').onclick=genMine;
 $('rtc').oninput=e=>{rtc=+e.target.value;$('rtcv').textContent=rtc+'%'};
-function recall(){const r=robots[sel];if(!r||!r.alive||state!='play')return;if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}r.goal=base.slice();r.path=[];r.state='moving';r.returning=false;r.explore=false;r.ex=null}
+function recall(){const r=robots[sel];if(!r||!r.alive||state!='play')return;if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}r.goal=base.slice();r.path=[];r.state='moving';r.returning=false;r.explore=false;r.ex=null;started=true}
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k>='1'&&k<='4'){sel=+k-1;updateUI()}else if(k==' '){e.preventDefault();$('pause').click()}else if(k=='r')recall();else if(k=='n')genMine()});
 genMine();requestAnimationFrame(loop);
 </script>
