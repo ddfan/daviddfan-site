@@ -9,44 +9,45 @@
 </head>
 <body>
 <div class="wrap">
-<div class="top"><a href="index.html">← Games</a><span class="stat">inspired by DARPA SubT</span></div>
+<div class="top"><a href="../index.html">← Home</a><span class="stat">inspired by DARPA SubT</span></div>
 <div class="kicker">Game · Multi-robot exploration</div>
 <h1>Mine Explorer</h1>
-<p class="lead">Lead a fleet of four robots into an unmapped mine. Select a robot, click where you want it to go, and it finds its own way there, dropping comms relays behind it. Discoveries only reach the base while a robot is inside comms range, and a robot that runs out of battery is gone for good.</p>
+<p class="lead">You have two minutes to map an unknown mine with a fleet of four robots. Select a robot, click where it should go, and it finds its own way there, dropping comms relays behind it. Discoveries only reach the base while a robot is in comms range, and you can only command robots that are connected.</p>
 <div class="stage">
 <canvas id="c" width="768" height="480"></canvas>
 <div class="robots" id="robots"></div>
 <div class="chips">
+  <div class="chip"><span>Time left</span><b id="s-time">2:00</b></div>
   <div class="chip"><span>Reported</span><b id="s-rep">0 / 10</b></div>
   <div class="chip"><span>Robots alive</span><b id="s-alive">4</b></div>
   <div class="chip"><span>Mapped</span><b id="s-map">0%</b></div>
-  <div class="chip"><span>Time</span><b id="s-time">0:00</b></div>
-  <div class="chip" style="margin-left:auto;flex-direction:row;gap:8px;align-items:center"><button id="spd">Speed 1×</button><button id="pause">Pause</button><button id="recall">Recall selected</button><button id="end">End mission</button></div>
+  <div class="chip"><span>Best</span><b id="s-best">–</b></div>
+</div>
+<div class="bar" style="padding:2px 6px 8px;align-items:center">
+  <button id="spd">Speed 1×</button><button id="pause">Pause</button><button id="recall">Recall selected</button><button id="restart">Restart (new mine)</button>
+  <label class="stat" style="margin-left:auto">Return to comms after <b id="rtcv">20 s</b> out of range <input type="range" id="rtc" min="5" max="60" value="20" style="vertical-align:middle;width:120px"></label>
 </div>
 </div>
-<div class="cols">
-  <div class="card2"><h3>How to play</h3>
-    <div class="legend"><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.55)"></i>comms range</span><span><i style="background:#6fbf73"></i>reported artifact</span><span><i style="background:#c8462a"></i>no link</span></div>
-    <p><b style="color:var(--text)">Click a robot</b> (or press <kbd>1</kbd>–<kbd>4</kbd>) to select it, then <b style="color:var(--text)">click the map</b> to send it to that area. It plans through unexplored space and replans when it hits rock.</p>
-    <p>Robots drop relays automatically near the edge of comms range. Anything a robot sees outside comms is only uploaded when it comes back into range, so a robot that dies out there takes its discoveries with it.</p>
-    <p>Score: 100 per reported artifact, 25 per surviving robot, plus the percent of the mine mapped. <kbd>Space</kbd> pauses, <kbd>R</kbd> recalls the selected robot.</p>
-  </div>
-  <div class="card2" id="lb"></div>
+<div class="card2" style="margin-top:14px"><h3>How to play</h3>
+  <div class="legend"><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.55)"></i>comms range</span><span><i style="background:#6fbf73"></i>reported artifact</span><span><i style="background:#c8462a"></i>no link</span></div>
+  <p><b style="color:var(--text)">Click a robot</b> (or press <kbd>1</kbd>–<kbd>4</kbd>) to select it, then <b style="color:var(--text)">click the map</b> to send it to that area. It plans through unexplored space and replans when it hits rock.</p>
+  <p>Robots drop relays automatically near the edge of comms range. Anything a robot sees outside comms is only uploaded when it comes back into range, and a robot out of range cannot be commanded: it carries on with its last order, then returns toward the last place it had a link once the timeout above runs out.</p>
+  <p>Batteries drain with time and drain faster while moving, and a robot that runs flat is lost for good. Score: 100 per reported artifact, 25 per surviving robot, plus the percent of the mine mapped. <kbd>Space</kbd> pauses, <kbd>R</kbd> recalls the selected robot, <kbd>N</kbd> restarts.</p>
 </div>
 </div>
-<script src="leaderboard.js"></script>
 <script>
 const GW=96,GH=60,CS=8,cv=document.getElementById('c'),x=cv.getContext('2d');
 const idx=(i,j)=>j*GW+i,inb=(i,j)=>i>0&&j>0&&i<GW-1&&j<GH-1,$=i=>document.getElementById(i);
-const COMMS=17,BATT=170,RELAYS=4,SENSE=7,NART=10,NROB=4,GR=3,TICK=1/7;
+const COMMS=17,BATT=520,IDLE_DRAIN=.25,MOVE_DRAIN=1,RELAYS=4,SENSE=7,NART=10,NROB=4,GR=3,TPS=7,TICK=1/TPS,MISSION=120,MAXT=MISSION*TPS;
 const RCOL=['#e0b84a','#e9805a','#b78cd8','#5cc4b5'];
-let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,submitted=false,floorTotal=0,lastRobotCell=null;
+let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,floorTotal=0,best=0,rtc=20,cards=[];
+try{best=+localStorage.getItem('mineBest')||0}catch(e){}
 const rnd=n=>Math.floor(Math.random()*n);
 function carveRect(x0,y0,x1,y1){for(let j=y0;j<=y1;j++)for(let i=x0;i<=x1;i++)if(inb(i,j))wall[idx(i,j)]=0}
 function corridor(ax,ay,bx,by){ // 3-wide L-shaped tunnel
   const h=(y,xa,xb)=>carveRect(Math.min(xa,xb),y-1,Math.max(xa,xb),y+1),v=(xx,ya,yb)=>carveRect(xx-1,Math.min(ya,yb),xx+1,Math.max(ya,yb));
   if(Math.random()<.5){h(ay,ax,bx);v(bx,ay,by)}else{v(ax,ay,by);h(by,ax,bx)}}
-function bfs(srcs,maxd=1e9,blockUnknown=false){const d=new Int32Array(GW*GH).fill(-1),q=[];for(const s of srcs){d[idx(s[0],s[1])]=0;q.push(s)}
+function bfs(srcs,maxd=1e9){const d=new Int32Array(GW*GH).fill(-1),q=[];for(const s of srcs){d[idx(s[0],s[1])]=0;q.push(s)}
   for(let h=0;h<q.length;h++){const[i,j]=q[h],dd=d[idx(i,j)];if(dd>=maxd)continue;for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inb(ni,nj)||wall[idx(ni,nj)]||d[idx(ni,nj)]>=0)continue;d[idx(ni,nj)]=dd+1;q.push([ni,nj])}}return d}
 function genMine(){
   for(;;){
@@ -57,29 +58,27 @@ function genMine(){
       if(rooms.every(o=>r.x>o.x+o.w+5||r.x+r.w+5<o.x||r.y>o.y+o.h+5||r.y+r.h+5<o.y))rooms.push(r)}
     if(rooms.length<9)continue;
     for(const r of rooms)carveRect(r.x,r.y,r.x+r.w-1,r.y+r.h-1);
-    // connect rooms with a minimum spanning tree, then add a few loops
-    const inT=[0],edges=[];while(inT.length<rooms.length){let best=null;for(const a of inT)for(let b=0;b<rooms.length;b++){if(inT.includes(b))continue;const d=Math.abs(rooms[a].cx-rooms[b].cx)+Math.abs(rooms[a].cy-rooms[b].cy);if(!best||d<best.d)best={a,b,d}}inT.push(best.b);edges.push(best)}
+    const inT=[0],edges=[];while(inT.length<rooms.length){let b2=null;for(const a of inT)for(let b=0;b<rooms.length;b++){if(inT.includes(b))continue;const d=Math.abs(rooms[a].cx-rooms[b].cx)+Math.abs(rooms[a].cy-rooms[b].cy);if(!b2||d<b2.d)b2={a,b,d}}inT.push(b2.b);edges.push(b2)}
     for(const e of edges)corridor(rooms[e.a].cx,rooms[e.a].cy,rooms[e.b].cx,rooms[e.b].cy);
     for(let k=0;k<3;k++){const a=rnd(rooms.length),b=rnd(rooms.length);if(a!=b)corridor(rooms[a].cx,rooms[a].cy,rooms[b].cx,rooms[b].cy)}
-    // dead-end drifts
     const stubs=[];for(let k=0;k<7;k++){const r=rooms[1+rnd(rooms.length-1)],dir=[[1,0],[-1,0],[0,1],[0,-1]][rnd(4)],len=9+rnd(12);
       let px=r.cx,py=r.cy;while(!wall[idx(px,py)])px+=dir[0],py+=dir[1];px-=dir[0];py-=dir[1];if(!inb(px,py))continue;
       const ex=px+dir[0]*len,ey=py+dir[1]*len;if(!inb(ex,ey)||!inb(ex+dir[0]*2,ey+dir[1]*2))continue;
       if(dir[0])carveRect(Math.min(px,ex),py-1,Math.max(px,ex),py+1);else carveRect(px-1,Math.min(py,ey),px+1,Math.max(py,ey));stubs.push([ex,ey])}
-    // pillars in big rooms
     for(const r of rooms.slice(1))if(r.w>=10&&r.h>=8){const px=r.x+2+rnd(r.w-5),py=r.y+2+rnd(r.h-5);if(Math.abs(px-r.cx)+Math.abs(py-r.cy)>3){for(let a=0;a<2;a++)for(let b=0;b<2;b++)wall[idx(px+a,py+b)]=1}}
     base=[rooms[0].cx,rooms[0].cy];wall[idx(...base)]=0;
     const d=bfs([base]);floorTotal=0;for(let k=0;k<GW*GH;k++)if(!wall[k]&&d[k]>=0)floorTotal++;
-    // artifacts: room interiors and drift ends, spread out, far from base
     const cand=[];for(const r of rooms.slice(1))for(let t=0;t<3;t++)cand.push([r.x+1+rnd(r.w-2),r.y+1+rnd(r.h-2)]);for(const s of stubs)cand.push(s);
     arts=[];for(const c of cand.sort(()=>Math.random()-.5)){if(wall[idx(...c)]||d[idx(...c)]<22)continue;if(arts.every(a=>Math.hypot(a.i-c[0],a.j-c[1])>9))arts.push({i:c[0],j:c[1],reported:false});if(arts.length>=NART)break}
     if(arts.length<NART)continue;
     break}
   seen=new Uint8Array(GW*GH);
-  robots=[];for(let n=0;n<NROB;n++){const px=base[0]-1+(n%2)*2,py=base[1]-1+((n/2)|0)*2;robots.push({id:n,x:px,y:py,battery:BATT,relays:RELAYS,goal:null,path:[],state:'idle',alive:true,know:new Uint8Array(GW*GH),dirty:new Set(),found:new Set(),link:true})}
-  nodes=[base.slice()];comms=bfs(nodes,COMMS);sel=0;state='play';ticks=0;tickAcc=0;submitted=false;paused=false;
+  robots=[];for(let n=0;n<NROB;n++){const px=base[0]-1+(n%2)*2,py=base[1]-1+((n/2)|0)*2;
+    robots.push({id:n,x:px,y:py,battery:BATT,relays:RELAYS,goal:null,path:[],state:'idle',alive:true,know:new Uint8Array(GW*GH),dirty:new Set(),found:new Set(),link:true,outTicks:0,returning:false,lastLink:[px,py]})}
+  nodes=[base.slice()];comms=bfs(nodes,COMMS);sel=0;state='play';ticks=0;tickAcc=0;paused=false;msgT=0;
+  $('pause').textContent='Pause';$('pause').classList.remove('on');
   for(const r of robots){sense(r);flush(r)}
-  refreshLB();ui()}
+  buildCards()}
 function sense(r){
   for(let j=Math.max(1,r.y-SENSE);j<=Math.min(GH-2,r.y+SENSE);j++)for(let i=Math.max(1,r.x-SENSE);i<=Math.min(GW-2,r.x+SENSE);i++){
     if(Math.hypot(i-r.x,j-r.y)>SENSE)continue;let ok=true,x0=r.x,y0=r.y,dx=Math.abs(i-x0),dy=Math.abs(j-y0),sx=x0<i?1:-1,sy=y0<j?1:-1,e=dx-dy;
@@ -88,8 +87,7 @@ function sense(r){
   for(let n=0;n<arts.length;n++){const a=arts[n];if(!a.reported&&Math.hypot(a.i-r.x,a.j-r.y)<=4&&r.know[idx(a.i,a.j)])r.found.add(n)}}
 function flush(r){for(const k of r.dirty)seen[k]=1;r.dirty.clear();for(const n of r.found)arts[n].reported=true;r.found.clear()}
 const known=(r,k)=>r.know[k]||seen[k];
-// A* on the robot's own map: unknown space is assumed passable (optimistic)
-function plan(r){
+function plan(r){ // A* on the robot's own map; unknown space is assumed passable
   const goalOK=(i,j)=>Math.hypot(i-r.goal[0],j-r.goal[1])<=GR;
   const open=[],g=new Float32Array(GW*GH).fill(1e9),par=new Int32Array(GW*GH).fill(-1),closed=new Uint8Array(GW*GH);
   const h=(i,j)=>Math.max(0,Math.abs(i-r.goal[0])+Math.abs(j-r.goal[1])-GR);
@@ -103,23 +101,25 @@ function plan(r){
   return null}
 function robotTick(r){
   if(!r.alive)return;
+  r.battery-=IDLE_DRAIN;
   if(r.battery<=0){r.alive=false;r.state='dead';r.path=[];msg='Robot '+(r.id+1)+' lost: battery depleted';msgT=4;return}
   if(r.goal&&r.state!='arrived'){
-    if(r.state=='blocked'&&ticks%10!=0){}else{
-    if(!r.path.length||r.path.some(c=>known(r,idx(c[0],c[1]))&&wall[idx(c[0],c[1])])||ticks%25==0){const p=plan(r);if(p){r.path=p;r.state='moving'}else{r.path=[];r.state='blocked'}}}
+    if(!(r.state=='blocked'&&ticks%10!=0)){
+      if(!r.path.length||r.path.some(c=>known(r,idx(c[0],c[1]))&&wall[idx(c[0],c[1])])||ticks%25==0){const p=plan(r);if(p){r.path=p;r.state=r.returning?'returning':'moving'}else{r.path=[];r.state='blocked'}}}
     if(Math.hypot(r.x-r.goal[0],r.y-r.goal[1])<=GR){r.state='arrived';r.path=[]}
-    else if(r.path.length){const n=r.path[0],k=idx(n[0],n[1]);if(wall[k]){r.know[k]=1;if(!seen[k])r.dirty.add(k);r.path=[];}else{r.x=n[0];r.y=n[1];r.path.shift();r.battery--}}}
+    else if(r.path.length){const n=r.path[0],k=idx(n[0],n[1]);if(wall[k]){r.know[k]=1;if(!seen[k])r.dirty.add(k);r.path=[]}else{r.x=n[0];r.y=n[1];r.path.shift();r.battery-=MOVE_DRAIN}}}
   sense(r);
   const cd=comms[idx(r.x,r.y)];r.link=cd>=0;
-  if(r.link)flush(r);
+  if(r.link){r.lastLink=[r.x,r.y];r.outTicks=0;flush(r);
+    if(r.returning){r.returning=false;r.goal=null;r.path=[];r.state='idle';msg='Robot '+(r.id+1)+' is back in comms';msgT=2.5}}
+  else{r.outTicks++;if(!r.returning&&r.outTicks>rtc*TPS){r.returning=true;r.goal=r.lastLink.slice();r.path=[];r.state='returning';msg='Robot '+(r.id+1)+' returning to comms';msgT=2.5}}
   if(r.link&&r.relays>0&&cd>=COMMS-3&&r.state=='moving'){r.relays--;r.battery-=2;nodes.push([r.x,r.y]);comms=bfs(nodes,COMMS);r.link=true}}
 function tick(){ticks++;for(const r of robots)robotTick(r);
   const rep=arts.filter(a=>a.reported).length;
-  if(state=='play'&&(rep==NART||robots.every(r=>!r.alive)))endMission()}
+  if(state=='play'&&(rep==NART||robots.every(r=>!r.alive)||ticks>=MAXT))endMission()}
 function score(){return arts.filter(a=>a.reported).length*100+robots.filter(r=>r.alive).length*25+Math.round(mapped()*100)}
 function mapped(){let c=0;for(let k=0;k<GW*GH;k++)if(seen[k]&&!wall[k])c++;return c/floorTotal}
-function endMission(){if(state!='play')return;state='over';refreshLB(score())}
-function refreshLB(pending){LB.show($('lb'),'mine',{order:'desc',fmt:v=>v+' pts',pending:pending==null?null:pending})}
+function endMission(){if(state!='play')return;state='over';const s=score();if(s>best){best=s;try{localStorage.setItem('mineBest',best)}catch(e){}}}
 function draw(){
   x.fillStyle='#14150f';x.fillRect(0,0,cv.width,cv.height);
   const live=new Uint8Array(GW*GH);
@@ -128,7 +128,7 @@ function draw(){
     x.fillStyle=wall[k]?(live[k]?'#6b6a60':'#3f3f38'):(live[k]?'#c9c3ae':'#8f8b7a');x.fillRect(i*CS,j*CS,CS,CS);
     if(!wall[k]&&comms[k]>=0){x.fillStyle='rgba(79,170,120,.26)';x.fillRect(i*CS,j*CS,CS,CS)}}
   for(const r of robots)if(r.goal&&r.alive){x.strokeStyle=RCOL[r.id];x.setLineDash([4,4]);x.globalAlpha=r.id==sel?1:.5;x.beginPath();x.arc(r.goal[0]*CS+CS/2,r.goal[1]*CS+CS/2,GR*CS,0,7);x.stroke();x.setLineDash([]);x.globalAlpha=1}
-  const sel_=robots[sel];if(sel_&&sel_.alive&&sel_.path.length){x.strokeStyle=RCOL[sel];x.globalAlpha=.5;x.beginPath();x.moveTo(sel_.x*CS+CS/2,sel_.y*CS+CS/2);for(const c of sel_.path)x.lineTo(c[0]*CS+CS/2,c[1]*CS+CS/2);x.stroke();x.globalAlpha=1}
+  const sr=robots[sel];if(sr&&sr.alive&&sr.path.length){x.strokeStyle=RCOL[sel];x.globalAlpha=.5;x.beginPath();x.moveTo(sr.x*CS+CS/2,sr.y*CS+CS/2);for(const c of sr.path)x.lineTo(c[0]*CS+CS/2,c[1]*CS+CS/2);x.stroke();x.globalAlpha=1}
   x.fillStyle='#4aa3d8';x.fillRect(base[0]*CS-3,base[1]*CS-3,CS+6,CS+6);for(const n of nodes.slice(1)){x.beginPath();x.arc(n[0]*CS+CS/2,n[1]*CS+CS/2,CS*.38,0,7);x.fill()}
   for(const a of arts)if(a.reported){x.fillStyle='#6fbf73';x.save();x.translate(a.i*CS+CS/2,a.j*CS+CS/2);x.rotate(.785);x.fillRect(-4,-4,8,8);x.restore()}
   robots.forEach(r=>{const cx=r.x*CS+CS/2,cy=r.y*CS+CS/2;
@@ -139,25 +139,32 @@ function draw(){
     x.fillStyle='#1a1a14';x.font='700 9px DM Sans,sans-serif';x.textAlign='center';x.fillText(r.id+1,cx,cy+3)});
   if(msgT>0){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-170,10,340,28);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText(msg,cv.width/2,29)}
   if(state=='over'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,cv.width,cv.height);x.fillStyle='#fff';x.textAlign='center';x.font='500 28px DM Sans,sans-serif';
-    x.fillText('Mission over: '+score()+' points',cv.width/2,cv.height/2-8);x.font='16px DM Sans,sans-serif';x.fillText(arts.filter(a=>a.reported).length+' of '+NART+' artifacts reported · '+robots.filter(r=>r.alive).length+' robots survived · press N for a new mine',cv.width/2,cv.height/2+22)}}
-function ui(){
-  $('robots').innerHTML=robots.map(r=>{const st=!r.alive?'lost':r.state=='idle'?'waiting at base':r.state=='moving'?'en route':r.state=='arrived'?'arrived':r.state=='blocked'?'no path':r.state;
-    return `<button class="rb ${r.id==sel?'sel':''} ${r.alive?'':'dead'}" data-i="${r.id}"><b style="color:${RCOL[r.id]}">●</b> Robot ${r.id+1} <small>${st}${r.alive&&!r.link?' · <span style="color:#c8462a">no link</span>':''} · relays ${r.relays}</small><div class="bat"><i style="width:${Math.max(0,r.battery)/BATT*100}%"></i></div></button>`}).join('');
-  document.querySelectorAll('.rb').forEach(b=>b.onclick=()=>{sel=+b.dataset.i;ui()});
+    x.fillText((ticks>=MAXT?'Time is up: ':'Mission over: ')+score()+' points',cv.width/2,cv.height/2-8);x.font='16px DM Sans,sans-serif';x.fillText(arts.filter(a=>a.reported).length+' of '+NART+' artifacts reported · '+robots.filter(r=>r.alive).length+' robots survived · press N to play a new mine',cv.width/2,cv.height/2+22)}}
+// robot cards are built once and only updated in place, so clicks never get lost to a re-render
+function buildCards(){const box=$('robots');box.innerHTML='';cards=robots.map(r=>{const b=document.createElement('button');b.className='rb';
+  b.innerHTML=`<b style="color:${RCOL[r.id]}">●</b> Robot ${r.id+1}<small></small><div class="bat"><i></i></div>`;b.onclick=()=>{sel=r.id;updateUI()};box.appendChild(b);return{b,small:b.querySelector('small'),bar:b.querySelector('i')}});updateUI()}
+function updateUI(){
+  robots.forEach((r,n)=>{const c=cards[n];const st=!r.alive?'lost':r.state=='idle'?(r.link?'ready':'out of range'):r.state=='moving'?'en route':r.state=='returning'?'returning to comms':r.state=='arrived'?'arrived':r.state=='blocked'?'no path':r.state;
+    const t=`${st}${r.alive&&!r.link?' · NO LINK':''} · relays ${r.relays} · ${Math.max(0,Math.round(r.battery/BATT*100))}%`;if(c.small.textContent!==t)c.small.textContent=t;
+    const w=Math.max(0,r.battery)/BATT*100+'%';if(c.bar.style.width!==w)c.bar.style.width=w;
+    c.b.classList.toggle('sel',n==sel);c.b.classList.toggle('dead',!r.alive);c.small.style.color=(r.alive&&!r.link)?'#c8462a':''});
   $('s-rep').textContent=arts.filter(a=>a.reported).length+' / '+NART;$('s-alive').textContent=robots.filter(r=>r.alive).length;$('s-map').textContent=Math.round(mapped()*100)+'%';
-  const t=Math.floor(ticks*TICK);$('s-time').textContent=Math.floor(t/60)+':'+String(t%60).padStart(2,'0')}
+  const left=Math.max(0,Math.ceil((MAXT-ticks)/TPS));$('s-time').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('s-best').textContent=best?best+' pts':'–'}
 let last=performance.now(),uiT=0;
-function loop(now){const dt=(now-last)/1000;last=now;if(state=='play'&&!paused){tickAcc+=Math.min(dt,.1)*speed;while(tickAcc>=TICK){tickAcc-=TICK;tick()}}
-  if(msgT>0)msgT-=dt;uiT+=dt;if(uiT>.15){uiT=0;ui()}draw();requestAnimationFrame(loop)}
+function loop(now){const dt=(now-last)/1000;last=now;if(state=='play'&&!paused){tickAcc+=Math.min(dt,.1)*speed;while(tickAcc>=TICK&&state=='play'){tickAcc-=TICK;tick()}}
+  if(msgT>0)msgT-=dt;uiT+=dt;if(uiT>.2){uiT=0;updateUI()}draw();requestAnimationFrame(loop)}
 cv.addEventListener('pointerdown',e=>{if(state!='play')return;const rc=cv.getBoundingClientRect(),i=Math.floor((e.clientX-rc.left)/rc.width*GW),j=Math.floor((e.clientY-rc.top)/rc.height*GH);
-  const hit=robots.find(r=>r.alive&&Math.hypot(r.x-i,r.y-j)<=1.6);if(hit){sel=hit.id;ui();return}
-  const r=robots[sel];if(!r||!r.alive)return;if(!inb(i,j))return;if(seen[idx(i,j)]&&wall[idx(i,j)]){msg='That is solid rock';msgT=1.5;return}
-  r.goal=[i,j];r.path=[];r.state='moving';ticks%25;ui()});
+  const hit=robots.find(r=>r.alive&&Math.hypot(r.x-i,j-r.y)<=1.6&&Math.hypot(r.x-i,r.y-j)<=1.6);if(hit){sel=hit.id;updateUI();return}
+  const r=robots[sel];if(!r||!r.alive||!inb(i,j))return;
+  if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}
+  if(seen[idx(i,j)]&&wall[idx(i,j)]){msg='That is solid rock';msgT=1.5;return}
+  r.goal=[i,j];r.path=[];r.state='moving';r.returning=false;updateUI()});
 $('spd').onclick=e=>{speed=speed==1?2:speed==2?4:1;e.target.textContent='Speed '+speed+'×'};
 $('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume':'Pause';e.target.classList.toggle('on',paused)};
-$('recall').onclick=recall;$('end').onclick=endMission;
-function recall(){const r=robots[sel];if(r&&r.alive&&state=='play'){r.goal=base.slice();r.path=[];r.state='moving'}}
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k>='1'&&k<='4'){sel=+k-1;ui()}else if(k==' '){e.preventDefault();$('pause').click()}else if(k=='r')recall();else if(k=='n')genMine()});
+$('recall').onclick=recall;$('restart').onclick=genMine;
+$('rtc').oninput=e=>{rtc=+e.target.value;$('rtcv').textContent=rtc+' s'};
+function recall(){const r=robots[sel];if(!r||!r.alive||state!='play')return;if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}r.goal=base.slice();r.path=[];r.state='moving';r.returning=false}
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k>='1'&&k<='4'){sel=+k-1;updateUI()}else if(k==' '){e.preventDefault();$('pause').click()}else if(k=='r')recall();else if(k=='n')genMine()});
 genMine();requestAnimationFrame(loop);
 </script>
 </body>
