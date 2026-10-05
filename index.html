@@ -15,7 +15,7 @@
 body{margin:0;background:var(--bg);color:var(--text);font:17px/1.7 "DM Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 .wrap{max-width:760px;margin:0 auto;padding:0 24px}
 a{color:var(--accent);text-underline-offset:3px}
-header{padding:28px 0;display:flex;justify-content:space-between;align-items:center;font-size:15px}
+header{padding:28px 0;display:flex;justify-content:flex-end;align-items:center;font-size:15px}
 header nav a{margin-left:22px;color:var(--mute);text-decoration:none}header nav a:hover{color:var(--text)}
 .hero{padding:72px 0 56px}
 h1{font:400 clamp(32px,5vw,46px)/1.05 Fraunces,Georgia,serif;letter-spacing:-.02em;margin:0 0 20px}
@@ -55,11 +55,11 @@ footer{padding:48px 0 72px;color:var(--mute);font-size:14px}
 </head>
 <body>
 <div class="wrap">
-<header><span>David D. Fan</span><nav><a href="#work">Work</a><a href="#background">Background</a><a href="#papers">Papers</a><a href="#patents">Patents</a><a href="#talks">Talks</a><a href="#contact">Contact</a></nav></header>
+<header><nav><a href="#work">Work</a><a href="#background">Background</a><a href="#papers">Papers</a><a href="#patents">Patents</a><a href="#talks">Talks</a><a href="#contact">Contact</a></nav></header>
 
 <div class="hero">
 <div class="hero-top"><img class="headshot" src="headshot.png" alt="David D. Fan" width="136" height="136"><h1>David D. Fan</h1></div>
-<p>I'm David Fan, currently CTO at <a href="https://www.fieldai.com">Field AI</a>, where I lead the team building Field Foundation Models: autonomy that lets robots work in complex, industrial and messy real-world environments without maps, GPS or predefined paths.</p>
+<p>I'm currently CTO at <a href="https://www.fieldai.com">Field AI</a>, where I lead the team building Field Foundation Models: autonomy that lets robots work in complex, industrial and messy real-world environments without maps, GPS or predefined paths.</p>
 <p>I've spent my career building robots that leave the lab. Before Field AI, I was a research engineer at <a href="https://www.niwcpacific.navy.mil">Navy NIWC Pacific</a> and a research fellow at <a href="https://www.jpl.nasa.gov">NASA Jet Propulsion Laboratory</a>. At JPL I was chief engineer for the team on DARPA's <a href="https://www.darpa.mil/program/robotic-autonomy-in-complex-environments-with-resiliency">RACER</a> program (<a href="https://spectrum.ieee.org/darpa-robot-racer">IEEE Spectrum</a>), and a technical lead on Team CoSTAR in DARPA's <a href="https://www.darpa.mil/program/darpa-subterranean-challenge">Subterranean Challenge</a>, where we won Phase II.</p>
 <p>Before JPL, I did my PhD at Georgia Tech with Evangelos Theodorou in the <a href="https://sites.gatech.edu/acds/">Autonomous Control and Decision Systems Laboratory</a>.</p>
 <p class="sub"><a href="https://scholar.google.com/citations?user=vbhA9hwAAAAJ">Google Scholar</a> · <a href="https://www.linkedin.com/in/david-d-fan-8157a797/">LinkedIn</a></p>
@@ -136,7 +136,7 @@ footer{padding:48px 0 72px;color:var(--mute);font-size:14px}
 <div><button type="submit">Send</button> <span id="cf-msg"></span></div>
 </form></section>
 
-<footer>© <span id="yr"></span> David D. Fan</footer>
+<footer>© <span id="yr"></span></footer>
 </div>
 <script>
 document.getElementById('yr').textContent=new Date().getFullYear();
