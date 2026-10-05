@@ -10,108 +10,125 @@
 <body>
 <div class="wrap">
 <div class="top"><a href="index.html">← Games</a><span class="stat">inspired by DARPA RACER</span></div>
+<div class="kicker">Game · Off-road racing</div>
 <h1>Off-road Racer</h1>
-<p class="lead">Race through every checkpoint as fast as you can across unknown terrain. You only see what your sensors can see: hills and tall vegetation block your view, so ridges hide what lies beyond. Trails are fast, vegetation and creeks are slow, and hitting a ditch at speed hurts.</p>
-<canvas id="c" width="720" height="480"></canvas>
-<div class="panel stat" id="hud"></div>
-<div class="legend"><span><i style="background:#bea678"></i>trail (fast)</span><span><i style="background:#7ea05c"></i>grass</span><span><i style="background:#587a46"></i>brush (slow)</span><span><i style="background:#3a5c3a"></i>trees (slowest)</span><span><i style="background:#4e8ab8"></i>creek (slow)</span><span><i style="background:#705c44"></i>ditch (bump!)</span></div>
-<p class="keys"><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake/reverse · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> handbrake · <kbd>R</kbd> restart · <kbd>N</kbd> new map. Needs a keyboard.</p>
+<p class="lead">Reach all six checkpoints as fast as you can across unmapped terrain. Your sensors only see what the land lets them: hills and thick vegetation hide what is beyond. The yellow arrow points at the next checkpoint, but the straight line is rarely the quickest way.</p>
+<div class="stage">
+<canvas id="c" width="768" height="480"></canvas>
+<div class="chips">
+  <div class="chip"><span>Time</span><b id="s-time">0.0 s</b></div>
+  <div class="chip"><span>Checkpoint</span><b id="s-cp">1 / 6</b></div>
+  <div class="chip"><span>Speed</span><b id="s-sp">0 km/h</b></div>
+  <div class="chip"><span>Terrain</span><b id="s-ter">trail</b></div>
+  <div class="chip"><span>Best</span><b id="s-best">–</b></div>
 </div>
+</div>
+<div class="cols">
+  <div class="card2"><h3>How to play</h3>
+    <div class="legend"><span><i style="background:#bea678"></i>trail (fast)</span><span><i style="background:#7ea05c"></i>grass</span><span><i style="background:#587a46"></i>brush</span><span><i style="background:#3a5c3a"></i>forest (slowest)</span><span><i style="background:#4e8ab8"></i>creek</span><span><i style="background:#705c44"></i>ditch</span></div>
+    <p><kbd>↑</kbd>/<kbd>W</kbd> gas · <kbd>↓</kbd>/<kbd>S</kbd> brake and reverse · <kbd>←</kbd><kbd>→</kbd>/<kbd>A</kbd><kbd>D</kbd> steer · <kbd>Space</kbd> handbrake · <kbd>R</kbd> restart.</p>
+    <p>Trails are quick but wind around the obstacles. Cutting across costs time in brush and forest, uphill slows you down, creeks drag, and hitting a ditch at speed throws away most of your momentum. Hills also block your view, so what you cannot see may be worse than what you can.</p>
+  </div>
+  <div class="card2" id="lb"></div>
+</div>
+</div>
+<script src="leaderboard.js"></script>
 <script>
-const M=160,CP=16,VW=45,VH=30,cv=document.getElementById('c'),x=cv.getContext('2d'),W=cv.width,H=cv.height,HS=30,RMAX=19,NCP=6;
+const M=160,CP=16,VW=48,VH=30,cv=document.getElementById('c'),x=cv.getContext('2d'),W=cv.width,H=cv.height,HS=30,RMAX=19,NCP=6,$=i=>document.getElementById(i);
 const K=(i,j)=>j*M+i,inb=(i,j)=>i>=0&&j>=0&&i<M&&j<M;
-const NAMES=['grass','trail','brush','trees','creek','ditch'],CAP=[10,14,6,3.2,3,5.5],DRAG=[.6,.35,1.5,3,3.6,1.6],VEG=[0,0,1.2,5,0,0];
+const NAMES=['grass','trail','brush','forest','creek','ditch'],CAP=[10,14,6.2,3.2,3,5.5],DRAG=[.6,.35,1.5,3,3.6,1.6],VEG=[0,0,1.2,5,0,0];
 const COL=[[126,160,92],[190,166,120],[88,122,70],[58,92,58],[78,138,184],[112,92,68]];
-let elev,type,explored,visStamp,frame=0,cps,veh,state,time,nextCp,keys={},best=0,msg='',msgT=0,seed;
-try{best=+localStorage.getItem('racerBest')||0}catch(e){}
+let elev,type,explored,visStamp,frame=0,veh,state,time,nextCp,keys={},best=0,msg='',msgT=0,submitted=false;
+const START=[14,146],CPS=[[62,124],[112,104],[132,52],[84,40],[36,60],[26,18]];
+try{best=+localStorage.getItem('racerBest2')||0}catch(e){}
 function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function field(s){const r=rng(s),G=40,g=Array.from({length:G*G},()=>r()),sm=t=>t*t*(3-2*t);
   const v=(px,py)=>{const i=Math.floor(px),j=Math.floor(py),u=sm(px-i),w=sm(py-j),a=g[(i%G)*G+j%G],b=g[((i+1)%G)*G+j%G],c=g[(i%G)*G+(j+1)%G],d=g[((i+1)%G)*G+(j+1)%G];return a*(1-u)*(1-w)+b*u*(1-w)+c*(1-u)*w+d*u*w};
   return(px,py)=>(v(px,py)*.62+v(px*2.1+7,py*2.1+3)*.28+v(px*4.3+1,py*4.3+9)*.10)}
-function gen(s){
-  seed=s;const E=field(s),C=field(s+11),D=field(s+23),V=field(s+37),r=rng(s+5);
+function stamp(cx,cy,rad,t,only){const q=Math.ceil(rad)+1;for(let j=-q;j<=q;j++)for(let i=-q;i<=q;i++){const ii=Math.round(cx)+i,jj=Math.round(cy)+j;
+  if(inb(ii,jj)&&Math.hypot(i,j)<=rad+.35&&(!only||only.includes(type[K(ii,jj)])))type[K(ii,jj)]=t}}
+function poly(pts,rad,t,only){for(let s=0;s<pts.length-1;s++){const[x0,y0]=pts[s],[x1,y1]=pts[s+1],n=Math.ceil(Math.hypot(x1-x0,y1-y0)*2);for(let q=0;q<=n;q++)stamp(x0+(x1-x0)*q/n,y0+(y1-y0)*q/n,rad,t,only)}}
+function meander(x0,y0,x1,y1,amp,freq,ph){const pts=[],len=Math.hypot(x1-x0,y1-y0),nx=-(y1-y0)/len,ny=(x1-x0)/len;
+  for(let d=0;d<=len;d+=3){const o=amp*Math.sin(d*freq+ph)+amp*.4*Math.sin(d*freq*2.3+ph*1.7);pts.push([x0+(x1-x0)*d/len+nx*o,y0+(y1-y0)*d/len+ny*o])}pts.push([x1,y1]);return pts}
+function gen(){
+  const E=field(2025),V=field(77),r=rng(31);
   elev=new Float32Array(M*M);type=new Uint8Array(M*M);explored=new Uint8Array(M*M);visStamp=new Uint32Array(M*M);
-  const cF=new Float32Array(M*M),dF=new Float32Array(M*M);
-  for(let j=0;j<M;j++)for(let i=0;i<M;i++){const k=K(i,j);elev[k]=Math.max(0,Math.min(1,(E(i*.04,j*.04)-.25)*1.7));cF[k]=C(i*.045,j*.045);dF[k]=D(i*.06,j*.06)}
-  const thin=(F,i,j,w)=>{const gx=F[K(Math.min(M-1,i+1),j)]-F[K(Math.max(0,i-1),j)],gy=F[K(i,Math.min(M-1,j+1))]-F[K(i,Math.max(0,j-1))],g=Math.hypot(gx,gy)/2+1e-4;return Math.abs(F[K(i,j)]-.5)/g<w};
-  for(let j=0;j<M;j++)for(let i=0;i<M;i++){const k=K(i,j),v=V(i*.1,j*.1);let t=0;
-    if(thin(cF,i,j,.9))t=4;else if(thin(dF,i,j,.6))t=5;else if(v>.64&&r()<.8)t=3;else if(v>.55)t=2;type[k]=t}
-  // checkpoints
-  cps=[];let p=[14,M-16];const start=p.slice();
-  for(let n=0;n<NCP;n++){let q=null;for(let tr=0;tr<200;tr++){const a=r()*6.283,d=40+r()*28,qx=Math.round(p[0]+Math.cos(a)*d),qy=Math.round(p[1]+Math.sin(a)*d);
-      if(qx>10&&qx<M-10&&qy>10&&qy<M-10&&cps.every(c=>Math.hypot(c[0]-qx,c[1]-qy)>30)&&Math.hypot(start[0]-qx,start[1]-qy)>30){q=[qx,qy];break}}
-    if(!q)q=[Math.round(20+r()*(M-40)),Math.round(20+r()*(M-40))];cps.push(q);p=q}
-  // trails along the course (slightly wobbly)
-  let a=start.slice(),wob=0;const stamp=(cx,cy,rad)=>{const q=Math.ceil(rad)+1;for(let j=-q;j<=q;j++)for(let i=-q;i<=q;i++){const ii=Math.round(cx)+i,jj=Math.round(cy)+j;if(inb(ii,jj)&&Math.hypot(i,j)<=rad+.3)type[K(ii,jj)]=1}};
-  stamp(start[0],start[1],3);
-  for(const b of cps){let px=a[0],py=a[1];for(let n=0;n<600&&Math.hypot(b[0]-px,b[1]-py)>1.5;n++){wob+=(r()-.5)*.35;wob*=.93;const ang=Math.atan2(b[1]-py,b[0]-px)+wob;px+=Math.cos(ang);py+=Math.sin(ang);px=Math.max(2,Math.min(M-3,px));py=Math.max(2,Math.min(M-3,py));stamp(px,py,1.2)}
-    stamp(b[0],b[1],2.5);a=b.slice()}
-  veh={x:start[0],y:start[1],th:-Math.PI/4,v:0,lastType:1};nextCp=0;time=0;state='ready';msg='';
-  explored.fill(0);see();mmDirty=true}
-function elevAt(px,py){const i=Math.max(0,Math.min(M-1,Math.round(px))),j=Math.max(0,Math.min(M-1,Math.round(py)));return elev[K(i,j)]}
-function typeAt(px,py){return type[K(Math.max(0,Math.min(M-1,Math.round(px))),Math.max(0,Math.min(M-1,Math.round(py))))]}
-function see(){ // viewshed over terrain + vegetation
+  const hills=[[88,114,11,.75],[140,66,11,.55],[58,52,9,.8],[40,100,10,.5],[120,138,12,.6],[20,50,9,.5],[100,20,8,.4]];
+  for(let j=0;j<M;j++)for(let i=0;i<M;i++){let e=.14+.14*E(i*.05,j*.05);for(const[cx,cy,sg,h]of hills)e+=h*Math.exp(-((i-cx)**2+(j-cy)**2)/(2*sg*sg));elev[K(i,j)]=Math.min(1,e);
+    if(V(i*.11,j*.11)>.66)type[K(i,j)]=2}
+  // patchy forests with ragged edges and a brush fringe
+  const forest=(cx,cy,rad)=>{const p1=r()*6,p2=r()*6;for(let j=Math.floor(cy-rad*1.6);j<=cy+rad*1.6;j++)for(let i=Math.floor(cx-rad*1.6);i<=cx+rad*1.6;i++){if(!inb(i,j))continue;
+    const d=Math.hypot(i-cx,j-cy),a=Math.atan2(j-cy,i-cx),edge=rad*(.8+.22*Math.sin(3*a+p1)+.14*Math.sin(5*a+p2));
+    if(d<edge){type[K(i,j)]=r()<.82?3:2}else if(d<edge*1.35&&r()<.55&&type[K(i,j)]==0)type[K(i,j)]=2}};
+  [[36,134,9],[74,66,7],[108,44,13],[132,116,11],[22,92,9],[66,18,8],[150,30,9],[90,140,10],[142,92,8],[50,36,7],[118,70,6]].forEach(f=>forest(...f));
+  // creeks and ditches: long, thin, linear features
+  poly(meander(98,160,104,48,5,.09,1.2),1.1,4);poly(meander(0,41,88,38,3,.1,.4),1.1,4);poly(meander(150,150,159,100,3,.12,2),1.0,4);
+  poly([[47,96],[46,159]],.85,5);poly([[92,76],[159,77]],.85,5);poly([[71,24],[72,72]],.85,5);poly([[8,84],[44,84]],.85,5);poly([[126,0],[124,40]],.85,5);
+  // the trail network: fast but indirect (it also overrides water and ditches, forming bridges and crossings)
+  const trails=[[[14,146],[26,152],[40,156],[52,152],[62,142],[64,132],[62,124]],
+    [[62,124],[60,108],[66,92],[82,84],[98,88],[106,98],[112,104]],
+    [[112,104],[118,94],[122,84],[124,70],[128,60],[132,52]],
+    [[132,52],[128,36],[116,26],[100,22],[90,28],[84,40]],
+    [[84,40],[76,52],[66,68],[52,72],[40,66],[36,60]],
+    [[36,60],[34,44],[40,34],[34,24],[26,18]]];
+  trails.forEach(t=>poly(t,1.5,1));
+  stamp(START[0],START[1],3,1);CPS.forEach(c=>stamp(c[0],c[1],2.6,1));
+  reset()}
+function reset(){veh={x:START[0],y:START[1],th:-Math.PI/4,v:0,lastType:1};nextCp=0;time=0;state='ready';msg='';explored.fill(0);see();submitted=false;refreshLB()}
+function refreshLB(pending){LB.show($('lb'),'racer',{order:'asc',fmt:v=>(+v).toFixed(1)+' s',pending:pending==null?null:pending})}
+const elevAt=(px,py)=>elev[K(Math.max(0,Math.min(M-1,Math.round(px))),Math.max(0,Math.min(M-1,Math.round(py))))];
+const typeAt=(px,py)=>type[K(Math.max(0,Math.min(M-1,Math.round(px))),Math.max(0,Math.min(M-1,Math.round(py))))];
+function see(){ // viewshed: terrain and vegetation occlude the sensor
   frame++;const ex=veh.x,ey=veh.y,eye=elevAt(ex,ey)*HS+2.2,NR=300;
   for(let n=0;n<NR;n++){const a=n/NR*6.2832,ca=Math.cos(a),sa=Math.sin(a);let ms=-1e9,lastK=-1;
     for(let rr=1;rr<=RMAX;rr+=.7){const i=Math.round(ex+ca*rr),j=Math.round(ey+sa*rr);if(!inb(i,j))break;const k=K(i,j);if(k==lastK)continue;lastK=k;
-      const hg=elev[k]*HS,sg=(hg-eye)/rr;
-      if(sg>=ms-1e-4){visStamp[k]=frame;explored[k]=1}
+      const hg=elev[k]*HS,sg=(hg-eye)/rr;if(sg>=ms-1e-4){visStamp[k]=frame;explored[k]=1}
       const so=(hg+VEG[type[k]]-eye)/rr;if(so>ms)ms=so}}
   for(let j=-2;j<=2;j++)for(let i=-2;i<=2;i++){const ii=Math.round(ex)+i,jj=Math.round(ey)+j;if(inb(ii,jj)){visStamp[K(ii,jj)]=frame;explored[K(ii,jj)]=1}}}
 function step(dt){
   if(state!='play'&&state!='ready')return;
   const up=keys.ArrowUp||keys.w,dn=keys.ArrowDown||keys.s,L=keys.ArrowLeft||keys.a,Rr=keys.ArrowRight||keys.d;
-  if(state=='ready'&&(up||dn)){state='play';time=0}
-  if(state!='play')return;time+=dt;
+  if(state=='ready'&&(up||dn))state='play';if(state!='play')return;time+=dt;
   const t=typeAt(veh.x,veh.y);let cap=CAP[t];
-  const fx=veh.x+Math.cos(veh.th),fy=veh.y+Math.sin(veh.th),grade=(elevAt(fx,fy)-elevAt(veh.x,veh.y))*HS;cap*=Math.max(.4,Math.min(1.35,1-.5*grade));
-  if(t==5&&veh.lastType!=5&&veh.v>7){veh.v*=.45;msg='Ditch! Slow down before crossing.';msgT=1.6}
+  const grade=(elevAt(veh.x+Math.cos(veh.th),veh.y+Math.sin(veh.th))-elevAt(veh.x,veh.y))*HS;cap*=Math.max(.4,Math.min(1.35,1-.5*grade));
+  if(t==5&&veh.lastType!=5&&veh.v>7){veh.v*=.4;msg='Ditch! Slow down before crossing.';msgT=1.6}
   veh.lastType=t;
   let acc=0;if(up)acc+=9;if(dn)acc-=(veh.v>0.5?14:6);if(keys[' '])acc-=veh.v>0?18:-18;
   veh.v+=(acc-DRAG[t]*veh.v)*dt;if(veh.v>cap)veh.v-=(veh.v-cap)*4*dt;if(veh.v<-3.5)veh.v=-3.5;
-  const turn=2.7*Math.min(1,Math.abs(veh.v)/3)/(1+Math.abs(veh.v)*.11)*Math.sign(veh.v||0);
-  veh.th+=((Rr?1:0)-(L?1:0))*turn*dt;
+  const turn=2.7*Math.min(1,Math.abs(veh.v)/3)/(1+Math.abs(veh.v)*.11)*Math.sign(veh.v||0);veh.th+=((Rr?1:0)-(L?1:0))*turn*dt;
   veh.x=Math.max(1,Math.min(M-2,veh.x+Math.cos(veh.th)*veh.v*dt));veh.y=Math.max(1,Math.min(M-2,veh.y+Math.sin(veh.th)*veh.v*dt));
   if(msgT>0)msgT-=dt;
-  const c=cps[nextCp];if(Math.hypot(c[0]-veh.x,c[1]-veh.y)<2.6){nextCp++;msg='Checkpoint '+nextCp+' / '+NCP;msgT=1.4;
-    if(nextCp>=NCP){state='done';if(!best||time<best){best=time;try{localStorage.setItem('racerBest',best)}catch(e){}}}}
+  const c=CPS[nextCp];if(Math.hypot(c[0]-veh.x,c[1]-veh.y)<2.8){nextCp++;msg='Checkpoint '+nextCp+' of '+NCP;msgT=1.4;
+    if(nextCp>=NCP){state='done';if(!best||time<best){best=time;try{localStorage.setItem('racerBest2',best)}catch(e){}}if(!submitted){submitted=true;refreshLB(Math.round(time*10)/10)}}}
   see()}
-let mm=document.createElement('canvas');mm.width=M;mm.height=M;const mx=mm.getContext('2d'),mid=mx.createImageData(M,M);let mmDirty=true,mmT=0;
-function drawMini(){for(let k=0;k<M*M;k++){const o=k*4;if(explored[k]){const c=COL[type[k]],sh=.7+.4*elev[k];mid.data[o]=c[0]*sh;mid.data[o+1]=c[1]*sh;mid.data[o+2]=c[2]*sh;mid.data[o+3]=255}else{mid.data[o]=18;mid.data[o+1]=19;mid.data[o+2]=14;mid.data[o+3]=255}}
-  mx.putImageData(mid,0,0)}
+const mm=document.createElement('canvas');mm.width=M;mm.height=M;const mx=mm.getContext('2d'),mid=mx.createImageData(M,M);let mmT=0;
+function drawMini(){for(let k=0;k<M*M;k++){const o=k*4;if(explored[k]){const c=COL[type[k]],sh=.7+.4*elev[k];mid.data[o]=c[0]*sh;mid.data[o+1]=c[1]*sh;mid.data[o+2]=c[2]*sh}else{mid.data[o]=18;mid.data[o+1]=19;mid.data[o+2]=14}mid.data[o+3]=255}mx.putImageData(mid,0,0)}
 function draw(){
   x.fillStyle='#0f100c';x.fillRect(0,0,W,H);
   const camX=veh.x*CP-W/2,camY=veh.y*CP-H/2,i0=Math.floor(camX/CP),j0=Math.floor(camY/CP);
   for(let j=j0;j<=j0+VH+1;j++)for(let i=i0;i<=i0+VW+1;i++){if(!inb(i,j))continue;const k=K(i,j);if(!explored[k])continue;
-    const c=COL[type[k]],sh=.74+.5*elev[k],v=visStamp[k]==frame,f=v?1:.42;
-    x.fillStyle=`rgb(${c[0]*sh*f|0},${c[1]*sh*f|0},${c[2]*sh*f|0})`;
-    const px=Math.floor(i*CP-camX),py=Math.floor(j*CP-camY);x.fillRect(px,py,CP+1,CP+1);
+    const c=COL[type[k]],sh=.74+.5*elev[k],v=visStamp[k]==frame,f=v?1:.42,px=Math.floor(i*CP-camX),py=Math.floor(j*CP-camY);
+    x.fillStyle=`rgb(${c[0]*sh*f|0},${c[1]*sh*f|0},${c[2]*sh*f|0})`;x.fillRect(px,py,CP+1,CP+1);
     if(type[k]==3){x.fillStyle=v?'#27432a':'#1b2c1e';x.beginPath();x.arc(px+CP/2,py+CP/2,CP*.46,0,7);x.fill()}
     else if(type[k]==2&&((i*7+j*13)%3==0)){x.fillStyle=v?'#476a3a':'#2c3e27';x.fillRect(px+4,py+4,5,5)}}
-  // checkpoints
-  cps.forEach((c,n)=>{if(n<nextCp)return;const ex=explored[K(c[0],c[1])],px=c[0]*CP-camX,py=c[1]*CP-camY;if(!ex&&n!=nextCp)return;
-    if(px<-30||py<-30||px>W+30||py>H+30)return;x.strokeStyle=n==nextCp?'#ffd24a':'#ffffff';x.lineWidth=n==nextCp?3:1.5;x.beginPath();x.arc(px,py,CP*1.3+(n==nextCp?Math.sin(performance.now()/200)*2:0),0,7);x.stroke();
-    x.fillStyle=x.strokeStyle;x.font='500 12px DM Sans,sans-serif';x.textAlign='center';x.fillText(n+1,px,py+4)});
-  // vehicle
+  CPS.forEach((c,n)=>{if(n<nextCp)return;const px=c[0]*CP-camX,py=c[1]*CP-camY;if(!explored[K(c[0],c[1])]&&n!=nextCp)return;if(px<-30||py<-30||px>W+30||py>H+30)return;
+    x.strokeStyle=n==nextCp?'#ffd24a':'#fff';x.lineWidth=n==nextCp?3:1.5;x.beginPath();x.arc(px,py,CP*1.3+(n==nextCp?Math.sin(performance.now()/200)*2:0),0,7);x.stroke();x.fillStyle=x.strokeStyle;x.font='500 12px DM Sans,sans-serif';x.textAlign='center';x.fillText(n+1,px,py+4)});
   x.save();x.translate(W/2,H/2);x.rotate(veh.th);x.fillStyle='rgba(0,0,0,.28)';x.fillRect(-12,-8,26,18);x.fillStyle='#1c1d18';x.fillRect(-12,-8,24,16);x.fillStyle='#c8462a';x.fillRect(-8,-6,14,12);x.fillStyle='#e8e4d4';x.fillRect(4,-4,6,8);
   x.fillStyle='#111';x.fillRect(-13,-10,7,4);x.fillRect(-13,6,7,4);x.fillRect(6,-10,7,4);x.fillRect(6,6,7,4);x.restore();
-  // compass to next checkpoint
-  if(state!='done'){const c=cps[nextCp],a=Math.atan2(c[1]-veh.y,c[0]-veh.x),d=Math.hypot(c[0]-veh.x,c[1]-veh.y);
-    if(d>8){const rad=Math.min(W,H)/2-22,ax=W/2+Math.cos(a)*rad,ay=H/2+Math.sin(a)*rad;x.save();x.translate(ax,ay);x.rotate(a);x.fillStyle='#ffd24a';x.beginPath();x.moveTo(11,0);x.lineTo(-7,-8);x.lineTo(-3,0);x.lineTo(-7,8);x.closePath();x.fill();x.restore()}}
-  // minimap
+  if(state!='done'){const c=CPS[nextCp],a=Math.atan2(c[1]-veh.y,c[0]-veh.x),d=Math.hypot(c[0]-veh.x,c[1]-veh.y);
+    if(d>8){const ax=W/2+Math.cos(a)*(H/2-24),ay=H/2+Math.sin(a)*(H/2-24);x.save();x.translate(ax,ay);x.rotate(a);x.fillStyle='#ffd24a';x.beginPath();x.moveTo(11,0);x.lineTo(-7,-8);x.lineTo(-3,0);x.lineTo(-7,8);x.closePath();x.fill();x.restore()}}
   mmT++;if(mmT%6==0)drawMini();x.globalAlpha=.95;x.drawImage(mm,W-132,10,122,122);x.globalAlpha=1;x.strokeStyle='rgba(255,255,255,.5)';x.strokeRect(W-132,10,122,122);
   x.fillStyle='#fff';x.beginPath();x.arc(W-132+veh.x/M*122,10+veh.y/M*122,2.5,0,7);x.fill();
-  cps.forEach((c,n)=>{if(n>=nextCp&&(explored[K(c[0],c[1])]||n==nextCp)){x.fillStyle='#ffd24a';x.fillRect(W-132+c[0]/M*122-1.5,10+c[1]/M*122-1.5,3,3)}});
+  CPS.forEach((c,n)=>{if(n>=nextCp&&(explored[K(c[0],c[1])]||n==nextCp)){x.fillStyle='#ffd24a';x.fillRect(W-132+c[0]/M*122-1.5,10+c[1]/M*122-1.5,3,3)}});
   if(msgT>0){x.fillStyle='rgba(0,0,0,.5)';x.fillRect(W/2-150,16,300,30);x.fillStyle='#fff';x.textAlign='center';x.font='500 15px DM Sans,sans-serif';x.fillText(msg,W/2,36)}
   if(state=='ready'||state=='done'){x.fillStyle='rgba(0,0,0,.45)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.textAlign='center';x.font='500 28px DM Sans,sans-serif';
     x.fillText(state=='ready'?'Press ↑ or W to start':'Finished in '+time.toFixed(1)+' s',W/2,H/2-8);x.font='16px DM Sans,sans-serif';
-    x.fillText(state=='ready'?'6 checkpoints · you only see what your sensors see':(best?'Best '+best.toFixed(1)+' s · ':'')+'R to retry · N for a new map',W/2,H/2+22)}}
-function hud(){const t=typeAt(veh.x,veh.y);document.getElementById('hud').innerHTML=`Time <b>${time.toFixed(1)}s</b> &nbsp; Checkpoint <b>${Math.min(nextCp+1,NCP)}/${NCP}</b> &nbsp; Speed <b>${Math.max(0,Math.round(veh.v*7))}</b> km/h &nbsp; Terrain <b>${NAMES[t]}</b> &nbsp; Best <b>${best?best.toFixed(1)+'s':'–'}</b>`}
+    x.fillText(state=='ready'?'Six checkpoints · you only see what your sensors see':(best?'Best '+best.toFixed(1)+' s · ':'')+'Press R to try again',W/2,H/2+22)}}
+function hud(){$('s-time').textContent=time.toFixed(1)+' s';$('s-cp').textContent=Math.min(nextCp+1,NCP)+' / '+NCP;$('s-sp').textContent=Math.max(0,Math.round(veh.v*7))+' km/h';$('s-ter').textContent=NAMES[typeAt(veh.x,veh.y)];$('s-best').textContent=best?best.toFixed(1)+' s':'–'}
 let last=performance.now();function loop(now){const dt=Math.min(.04,(now-last)/1000);last=now;step(dt);draw();hud();requestAnimationFrame(loop)}
-addEventListener('keydown',e=>{const k=e.key.length==1?e.key.toLowerCase():e.key;keys[k]=1;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();
-  if(k=='r'){const s=seed;gen(s)}else if(k=='n')gen(Math.floor(Math.random()*1e6))});
+addEventListener('keydown',e=>{const k=e.key.length==1?e.key.toLowerCase():e.key;keys[k]=1;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(k=='r')reset()});
 addEventListener('keyup',e=>{const k=e.key.length==1?e.key.toLowerCase():e.key;keys[k]=0});
-gen(Math.floor(Math.random()*1e6));requestAnimationFrame(loop);
+gen();requestAnimationFrame(loop);
 </script>
 </body>
 </html>
