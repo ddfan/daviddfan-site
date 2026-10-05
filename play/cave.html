@@ -36,9 +36,9 @@
 </div>
 </div>
 <script>
-const GW=96,GH=60,CS=8,cv=document.getElementById('c'),x=cv.getContext('2d');
+const GW=128,GH=80,CS=6,cv=document.getElementById('c'),x=cv.getContext('2d');
 const idx=(i,j)=>j*GW+i,inb=(i,j)=>i>0&&j>0&&i<GW-1&&j<GH-1,$=i=>document.getElementById(i);
-const COMMS=17,BATT=520,IDLE_DRAIN=.25,MOVE_DRAIN=1,RELAYS=4,SENSE=7,NART=10,NROB=4,GR=3,TPS=7,TICK=1/TPS,MISSION=120,MAXT=MISSION*TPS;
+const COMMS=15,BATT=330,IDLE_DRAIN=.25,MOVE_DRAIN=1,RELAYS=4,SENSE=6,NART=10,NROB=4,GR=3,TPS=7,TICK=1/TPS,MISSION=120,MAXT=MISSION*TPS;
 const RCOL=['#e0b84a','#e9805a','#b78cd8','#5cc4b5'];
 let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,floorTotal=0,best=0,rtc=20,cards=[];
 try{best=+localStorage.getItem('mineBest')||0}catch(e){}
@@ -54,14 +54,14 @@ function genMine(){
     wall=new Uint8Array(GW*GH).fill(1);rooms=[];
     const mk=(x,y,w,h)=>({x,y,w,h,cx:x+(w>>1),cy:y+(h>>1)});
     rooms.push(mk(3,GH/2-4,11,9));
-    for(let t=0;t<600&&rooms.length<13;t++){const w=7+rnd(8),h=6+rnd(6),r=mk(2+rnd(GW-w-4),2+rnd(GH-h-4),w,h);
+    for(let t=0;t<600&&rooms.length<18;t++){const w=7+rnd(8),h=6+rnd(6),r=mk(2+rnd(GW-w-4),2+rnd(GH-h-4),w,h);
       if(rooms.every(o=>r.x>o.x+o.w+5||r.x+r.w+5<o.x||r.y>o.y+o.h+5||r.y+r.h+5<o.y))rooms.push(r)}
-    if(rooms.length<9)continue;
+    if(rooms.length<12)continue;
     for(const r of rooms)carveRect(r.x,r.y,r.x+r.w-1,r.y+r.h-1);
     const inT=[0],edges=[];while(inT.length<rooms.length){let b2=null;for(const a of inT)for(let b=0;b<rooms.length;b++){if(inT.includes(b))continue;const d=Math.abs(rooms[a].cx-rooms[b].cx)+Math.abs(rooms[a].cy-rooms[b].cy);if(!b2||d<b2.d)b2={a,b,d}}inT.push(b2.b);edges.push(b2)}
     for(const e of edges)corridor(rooms[e.a].cx,rooms[e.a].cy,rooms[e.b].cx,rooms[e.b].cy);
-    for(let k=0;k<3;k++){const a=rnd(rooms.length),b=rnd(rooms.length);if(a!=b)corridor(rooms[a].cx,rooms[a].cy,rooms[b].cx,rooms[b].cy)}
-    const stubs=[];for(let k=0;k<7;k++){const r=rooms[1+rnd(rooms.length-1)],dir=[[1,0],[-1,0],[0,1],[0,-1]][rnd(4)],len=9+rnd(12);
+    for(let k=0;k<4;k++){const a=rnd(rooms.length),b=rnd(rooms.length);if(a!=b)corridor(rooms[a].cx,rooms[a].cy,rooms[b].cx,rooms[b].cy)}
+    const stubs=[];for(let k=0;k<11;k++){const r=rooms[1+rnd(rooms.length-1)],dir=[[1,0],[-1,0],[0,1],[0,-1]][rnd(4)],len=9+rnd(12);
       let px=r.cx,py=r.cy;while(!wall[idx(px,py)])px+=dir[0],py+=dir[1];px-=dir[0];py-=dir[1];if(!inb(px,py))continue;
       const ex=px+dir[0]*len,ey=py+dir[1]*len;if(!inb(ex,ey)||!inb(ex+dir[0]*2,ey+dir[1]*2))continue;
       if(dir[0])carveRect(Math.min(px,ex),py-1,Math.max(px,ex),py+1);else carveRect(px-1,Math.min(py,ey),px+1,Math.max(py,ey));stubs.push([ex,ey])}
@@ -147,10 +147,10 @@ function draw(){
   for(const a of arts)if(a.reported){x.fillStyle='#6fbf73';x.save();x.translate(a.i*CS+CS/2,a.j*CS+CS/2);x.rotate(.785);x.fillRect(-4,-4,8,8);x.restore()}
   robots.forEach(r=>{const cx=r.x*CS+CS/2,cy=r.y*CS+CS/2;
     if(!r.alive){x.strokeStyle='#888';x.lineWidth=2;x.beginPath();x.moveTo(cx-4,cy-4);x.lineTo(cx+4,cy+4);x.moveTo(cx+4,cy-4);x.lineTo(cx-4,cy+4);x.stroke();x.lineWidth=1;return}
-    x.fillStyle=RCOL[r.id];x.beginPath();x.arc(cx,cy,CS*.62,0,7);x.fill();
-    if(!r.link){x.strokeStyle='#c8462a';x.lineWidth=2;x.beginPath();x.arc(cx,cy,CS*.62+2,0,7);x.stroke();x.lineWidth=1}
-    if(r.id==sel){x.strokeStyle='#fff';x.beginPath();x.arc(cx,cy,CS*1.1,0,7);x.stroke()}
-    x.fillStyle='#1a1a14';x.font='700 9px DM Sans,sans-serif';x.textAlign='center';x.fillText(r.id+1,cx,cy+3)});
+    x.fillStyle=RCOL[r.id];x.beginPath();x.arc(cx,cy,5,0,7);x.fill();
+    if(!r.link){x.strokeStyle='#c8462a';x.lineWidth=2;x.beginPath();x.arc(cx,cy,7,0,7);x.stroke();x.lineWidth=1}
+    if(r.id==sel){x.strokeStyle='#fff';x.beginPath();x.arc(cx,cy,9,0,7);x.stroke()}
+    x.fillStyle='#1a1a14';x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText(r.id+1,cx,cy+3)});
   if(msgT>0){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-170,10,340,28);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText(msg,cv.width/2,29)}
   if(state=='over'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,cv.width,cv.height);x.fillStyle='#fff';x.textAlign='center';x.font='500 28px DM Sans,sans-serif';
     x.fillText((ticks>=MAXT?'Time is up: ':'Mission over: ')+score()+' points',cv.width/2,cv.height/2-8);x.font='16px DM Sans,sans-serif';x.fillText(arts.filter(a=>a.reported).length+' of '+NART+' artifacts reported · '+robots.filter(r=>r.alive).length+' robots survived · press N to play a new mine',cv.width/2,cv.height/2+22)}}
@@ -168,7 +168,7 @@ let last=performance.now(),uiT=0;
 function loop(now){const dt=(now-last)/1000;last=now;if(state=='play'&&!paused){tickAcc+=Math.min(dt,.1)*speed;while(tickAcc>=TICK&&state=='play'){tickAcc-=TICK;tick()}}
   if(msgT>0)msgT-=dt;uiT+=dt;if(uiT>.2){uiT=0;updateUI()}draw();requestAnimationFrame(loop)}
 cv.addEventListener('pointerdown',e=>{if(state!='play')return;const rc=cv.getBoundingClientRect(),i=Math.floor((e.clientX-rc.left)/rc.width*GW),j=Math.floor((e.clientY-rc.top)/rc.height*GH);
-  const hit=robots.find(r=>r.alive&&Math.hypot(r.x-i,j-r.y)<=1.6&&Math.hypot(r.x-i,r.y-j)<=1.6);if(hit){sel=hit.id;updateUI();return}
+  const hit=robots.find(r=>r.alive&&Math.hypot(r.x-i,r.y-j)<=2);if(hit){sel=hit.id;updateUI();return}
   const r=robots[sel];if(!r||!r.alive||!inb(i,j))return;
   if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}
   if(seen[idx(i,j)]&&wall[idx(i,j)]){msg='That is solid rock';msgT=1.5;return}
