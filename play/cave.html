@@ -25,13 +25,13 @@
 </div>
 <div class="bar" style="padding:2px 6px 8px;align-items:center">
   <button id="spd">Speed 1×</button><button id="pause">Pause</button><button id="recall">Recall selected</button><button id="restart">Restart (new mine)</button>
-  <label class="stat" style="margin-left:auto">Return to comms after <b id="rtcv">20 s</b> out of range <input type="range" id="rtc" min="5" max="60" value="20" style="vertical-align:middle;width:120px"></label>
+  <label class="stat" style="margin-left:auto">Battery reserve when returning <b id="rtcv">12%</b> <input type="range" id="rtc" min="0" max="40" value="12" style="vertical-align:middle;width:120px"></label>
 </div>
 </div>
 <div class="card2" style="margin-top:14px"><h3>How to play</h3>
   <div class="legend"><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.55)"></i>comms range</span><span><i style="background:#6fbf73"></i>reported artifact</span><span><i style="background:#c8462a"></i>no link</span></div>
   <p><b style="color:var(--text)">Click a robot</b> (or press <kbd>1</kbd>–<kbd>4</kbd>) to select it, then <b style="color:var(--text)">click the map</b> to send it to that area. It plans through unexplored space and replans when it hits rock. Once it reaches the area it keeps exploring nearby on its own.</p>
-  <p>Robots drop relays automatically near the edge of comms range. Anything a robot sees outside comms is only uploaded when it comes back into range, and a robot out of range cannot be commanded: it carries on with its last order, then returns toward the last place it had a link once the timeout above runs out.</p>
+  <p>Robots drop relays automatically near the edge of comms range. Anything a robot sees outside comms is only uploaded when it comes back into range, and a robot out of range cannot be commanded: it carries on with its last order or keeps exploring. It automatically heads back toward comms once its battery is only just enough to get there, plus the reserve you set with the slider.</p>
   <p>Batteries drain with time and drain faster while moving, and a robot that runs flat is lost for good. Score: 100 per reported artifact, 25 per surviving robot, plus the percent of the mine mapped. <kbd>Space</kbd> pauses, <kbd>R</kbd> recalls the selected robot, <kbd>N</kbd> restarts.</p>
 </div>
 </div>
@@ -40,7 +40,7 @@ const GW=128,GH=80,CS=6,cv=document.getElementById('c'),x=cv.getContext('2d');
 const idx=(i,j)=>j*GW+i,inb=(i,j)=>i>0&&j>0&&i<GW-1&&j<GH-1,$=i=>document.getElementById(i);
 const COMMS=15,BATT=330,IDLE_DRAIN=.25,MOVE_DRAIN=1,RELAYS=4,SENSE=6,NART=10,NROB=4,GR=3,TPS=7,TICK=1/TPS,MISSION=120,MAXT=MISSION*TPS;
 const RCOL=['#e0b84a','#e9805a','#b78cd8','#5cc4b5'];
-let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,floorTotal=0,best=0,rtc=20,cards=[];
+let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,floorTotal=0,best=0,rtc=12,cards=[];
 try{best=+localStorage.getItem('mineBest')||0}catch(e){}
 const rnd=n=>Math.floor(Math.random()*n);
 function carveRect(x0,y0,x1,y1){for(let j=y0;j<=y1;j++)for(let i=x0;i<=x1;i++)if(inb(i,j))wall[idx(i,j)]=0}
@@ -108,6 +108,11 @@ function frontier(r){
     if(dd>=70)continue;
     for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inb(ni,nj))continue;const nk=idx(ni,nj);if(d[nk]>=0||!known(r,nk)||wall[nk])continue;d[nk]=dd+1;q.push([ni,nj])}}
   return best}
+// battery-aware retreat: how far (known path) is the nearest comms-covered cell?
+function backDist(r){const d=new Int32Array(GW*GH).fill(-1),q=[[r.x,r.y]];d[idx(r.x,r.y)]=0;
+  for(let h=0;h<q.length;h++){const[i,j]=q[h],dd=d[idx(i,j)];if(comms[idx(i,j)]>=0)return{d:dd,cell:[i,j]};
+    for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inb(ni,nj))continue;const nk=idx(ni,nj);if(d[nk]>=0||!known(r,nk)||wall[nk])continue;d[nk]=dd+1;q.push([ni,nj])}}
+  return{d:Math.hypot(r.x-r.lastLink[0],r.y-r.lastLink[1])*1.5,cell:r.lastLink.slice()}}
 function robotTick(r){
   if(!r.alive)return;
   r.battery-=IDLE_DRAIN;
@@ -115,8 +120,8 @@ function robotTick(r){
   const goalMode=r.goal&&r.state!='arrived'&&r.state!='exploring';
   if(goalMode){
     if(!(r.state=='blocked'&&ticks%10!=0)){
-      if(!r.path.length||r.path.some(c=>known(r,idx(c[0],c[1]))&&wall[idx(c[0],c[1])])||ticks%25==0){const p=plan(r,r.goal,GR);if(p){r.path=p;r.state=r.returning?'returning':'moving'}else{r.path=[];r.state='blocked'}}}
-    if(Math.hypot(r.x-r.goal[0],r.y-r.goal[1])<=GR){r.path=[];r.state=r.explore?'exploring':'arrived';r.ex=null}
+      if(!r.path.length||r.path.some(c=>known(r,idx(c[0],c[1]))&&wall[idx(c[0],c[1])])||ticks%25==0){const p=plan(r,r.goal,r.returning?0:GR);if(p){r.path=p;r.state=r.returning?'returning':'moving'}else{r.path=[];r.state='blocked'}}}
+    if(Math.hypot(r.x-r.goal[0],r.y-r.goal[1])<=(r.returning?0:GR)){r.path=[];r.state=r.explore?'exploring':'arrived';r.ex=null}
     else if(r.path.length){const n=r.path[0],k=idx(n[0],n[1]);if(wall[k]){r.know[k]=1;if(!seen[k])r.dirty.add(k);r.path=[]}else{r.x=n[0];r.y=n[1];r.path.shift();r.battery-=MOVE_DRAIN}}}
   else if(r.state=='exploring'){
     const stale=!r.ex||Math.hypot(r.x-r.ex[0],r.y-r.ex[1])<=1.2||!r.path.length;
@@ -126,7 +131,8 @@ function robotTick(r){
   const cd=comms[idx(r.x,r.y)];r.link=cd>=0;
   if(r.link){r.lastLink=[r.x,r.y];r.outTicks=0;flush(r);
     if(r.returning){r.returning=false;r.goal=null;r.path=[];r.state='idle';msg='Robot '+(r.id+1)+' is back in comms';msgT=2.5}}
-  else{r.outTicks++;if(!r.returning&&r.outTicks>rtc*TPS){r.returning=true;r.explore=false;r.goal=r.lastLink.slice();r.path=[];r.state='returning';msg='Robot '+(r.id+1)+' returning to comms';msgT=2.5}}
+  else if(!r.returning){const bd=backDist(r),need=bd.d*(MOVE_DRAIN+IDLE_DRAIN)+rtc/100*BATT;
+    if(r.battery<=need){r.returning=true;r.explore=false;r.goal=bd.cell;r.path=[];r.state='returning';msg='Robot '+(r.id+1)+' heading back to comms: battery getting low';msgT=3}}
   if(r.link&&r.relays>0&&cd>=COMMS-3&&(r.state=='moving'||r.state=='exploring')){r.relays--;r.battery-=2;nodes.push([r.x,r.y]);comms=bfs(nodes,COMMS);r.link=true}}
 function tick(){ticks++;for(const r of robots)robotTick(r);
   const rep=arts.filter(a=>a.reported).length;
@@ -176,7 +182,7 @@ cv.addEventListener('pointerdown',e=>{if(state!='play')return;const rc=cv.getBou
 $('spd').onclick=e=>{speed=speed==1?2:speed==2?4:1;e.target.textContent='Speed '+speed+'×'};
 $('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume':'Pause';e.target.classList.toggle('on',paused)};
 $('recall').onclick=recall;$('restart').onclick=genMine;
-$('rtc').oninput=e=>{rtc=+e.target.value;$('rtcv').textContent=rtc+' s'};
+$('rtc').oninput=e=>{rtc=+e.target.value;$('rtcv').textContent=rtc+'%'};
 function recall(){const r=robots[sel];if(!r||!r.alive||state!='play')return;if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}r.goal=base.slice();r.path=[];r.state='moving';r.returning=false;r.explore=false;r.ex=null}
 addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k>='1'&&k<='4'){sel=+k-1;updateUI()}else if(k==' '){e.preventDefault();$('pause').click()}else if(k=='r')recall();else if(k=='n')genMine()});
 genMine();requestAnimationFrame(loop);
