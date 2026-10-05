@@ -31,18 +31,18 @@ function field(s){const r=rng(s),G=40,g=Array.from({length:G*G},()=>r()),sm=t=>t
 function gen(s){
   seed=s;const E=field(s),C=field(s+11),D=field(s+23),V=field(s+37),r=rng(s+5);
   elev=new Float32Array(M*M);type=new Uint8Array(M*M);explored=new Uint8Array(M*M);visStamp=new Uint32Array(M*M);
-  for(let j=0;j<M;j++)for(let i=0;i<M;i++){const k=K(i,j);
-    elev[k]=Math.max(0,Math.min(1,(E(i*.04,j*.04)-.25)*1.7));
-    const c=C(i*.045,j*.045),d=D(i*.06,j*.06),v=V(i*.1,j*.1);let t=0;
-    if(Math.abs(c-.5)<.012)t=4;else if(Math.abs(d-.5)<.011)t=5;else if(v>.64&&r()<.8)t=3;else if(v>.55)t=2;
-    type[k]=t}
+  const cF=new Float32Array(M*M),dF=new Float32Array(M*M);
+  for(let j=0;j<M;j++)for(let i=0;i<M;i++){const k=K(i,j);elev[k]=Math.max(0,Math.min(1,(E(i*.04,j*.04)-.25)*1.7));cF[k]=C(i*.045,j*.045);dF[k]=D(i*.06,j*.06)}
+  const thin=(F,i,j,w)=>{const gx=F[K(Math.min(M-1,i+1),j)]-F[K(Math.max(0,i-1),j)],gy=F[K(i,Math.min(M-1,j+1))]-F[K(i,Math.max(0,j-1))],g=Math.hypot(gx,gy)/2+1e-4;return Math.abs(F[K(i,j)]-.5)/g<w};
+  for(let j=0;j<M;j++)for(let i=0;i<M;i++){const k=K(i,j),v=V(i*.1,j*.1);let t=0;
+    if(thin(cF,i,j,.9))t=4;else if(thin(dF,i,j,.6))t=5;else if(v>.64&&r()<.8)t=3;else if(v>.55)t=2;type[k]=t}
   // checkpoints
   cps=[];let p=[14,M-16];const start=p.slice();
   for(let n=0;n<NCP;n++){let q=null;for(let tr=0;tr<200;tr++){const a=r()*6.283,d=40+r()*28,qx=Math.round(p[0]+Math.cos(a)*d),qy=Math.round(p[1]+Math.sin(a)*d);
       if(qx>10&&qx<M-10&&qy>10&&qy<M-10&&cps.every(c=>Math.hypot(c[0]-qx,c[1]-qy)>30)&&Math.hypot(start[0]-qx,start[1]-qy)>30){q=[qx,qy];break}}
     if(!q)q=[Math.round(20+r()*(M-40)),Math.round(20+r()*(M-40))];cps.push(q);p=q}
   // trails along the course (slightly wobbly)
-  let a=start.slice(),wob=0;const stamp=(cx,cy,rad)=>{for(let j=-rad-1;j<=rad+1;j++)for(let i=-rad-1;i<=rad+1;i++){const ii=Math.round(cx)+i,jj=Math.round(cy)+j;if(inb(ii,jj)&&Math.hypot(i,j)<=rad+.3)type[K(ii,jj)]=1}};
+  let a=start.slice(),wob=0;const stamp=(cx,cy,rad)=>{const q=Math.ceil(rad)+1;for(let j=-q;j<=q;j++)for(let i=-q;i<=q;i++){const ii=Math.round(cx)+i,jj=Math.round(cy)+j;if(inb(ii,jj)&&Math.hypot(i,j)<=rad+.3)type[K(ii,jj)]=1}};
   stamp(start[0],start[1],3);
   for(const b of cps){let px=a[0],py=a[1];for(let n=0;n<600&&Math.hypot(b[0]-px,b[1]-py)>1.5;n++){wob+=(r()-.5)*.35;wob*=.93;const ang=Math.atan2(b[1]-py,b[0]-px)+wob;px+=Math.cos(ang);py+=Math.sin(ang);px=Math.max(2,Math.min(M-3,px));py=Math.max(2,Math.min(M-3,py));stamp(px,py,1.2)}
     stamp(b[0],b[1],2.5);a=b.slice()}
