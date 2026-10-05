@@ -70,7 +70,7 @@ function genMine(){
     break}
   seen=new Uint8Array(GW*GH);
   robots=[];for(let n=0;n<NROB;n++){const px=base[0]-1+(n%2)*2,py=base[1]-1+((n/2)|0)*2;
-    robots.push({id:n,x:px,y:py,battery:BATT,relays:RELAYS,goal:null,path:[],state:'idle',alive:true,know:new Uint8Array(GW*GH),dirty:new Set(),found:new Set(),link:true,outTicks:0,returning:false,explore:false,ex:null,lastLink:[px,py]})}
+    robots.push({id:n,x:px,y:py,battery:BATT,relays:RELAYS,goal:null,path:[],state:'idle',alive:true,know:new Uint8Array(GW*GH),dirty:new Set(),found:new Set(),link:true,outTicks:0,returning:false,explore:false,ex:null,lastLink:[px,py],tel:{state:'idle',battery:BATT,relays:RELAYS}})}
   nodes=[base.slice()];comms=bfs(nodes,COMMS);sel=0;state='play';started=false;ticks=0;tickAcc=0;paused=false;msgT=0;
   $('pause').textContent='Pause';$('pause').classList.remove('on');
   for(const r of robots){sense(r);flush(r)}
@@ -112,7 +112,7 @@ function backDist(r){const d=new Int32Array(GW*GH).fill(-1),q=[[r.x,r.y]];d[idx(
 function robotTick(r){
   if(!r.alive)return;
   r.battery-=IDLE_DRAIN;
-  if(r.battery<=0){r.alive=false;r.state='dead';r.path=[];msg='Robot '+(r.id+1)+' lost: battery depleted';msgT=4;return}
+  if(r.battery<=0){r.alive=false;r.state='dead';r.path=[];if(r.link){r.tel={state:'dead',battery:0,relays:r.relays};msg='Robot '+(r.id+1)+' lost: battery depleted';msgT=4}return}
   const goalMode=r.goal&&r.state!='arrived'&&r.state!='exploring';
   if(goalMode){
     if(!(r.state=='blocked'&&ticks%10!=0)){
@@ -125,7 +125,7 @@ function robotTick(r){
     if(r.path.length){const n=r.path[0],k=idx(n[0],n[1]);if(wall[k]){r.know[k]=1;if(!seen[k])r.dirty.add(k);r.path=[]}else{r.x=n[0];r.y=n[1];r.path.shift();r.battery-=MOVE_DRAIN}}}
   sense(r);
   const cd=comms[idx(r.x,r.y)];r.link=cd>=0;
-  if(r.link){r.lastLink=[r.x,r.y];r.outTicks=0;flush(r);
+  if(r.link){r.lastLink=[r.x,r.y];r.outTicks=0;flush(r);r.tel={state:r.state,battery:r.battery,relays:r.relays};
     if(r.returning){r.returning=false;r.goal=null;r.path=[];r.state='idle';msg='Robot '+(r.id+1)+' is back in comms';msgT=2.5}}
   else if(!r.returning){const bd=backDist(r),need=bd.d*(MOVE_DRAIN+IDLE_DRAIN)+rtc/100*BATT;
     if(r.battery<=need){r.returning=true;r.explore=false;r.goal=bd.cell;r.path=[];r.state='returning';msg='Robot '+(r.id+1)+' heading back to comms: battery getting low';msgT=3}}
@@ -144,13 +144,15 @@ function draw(){
     x.fillStyle=wall[k]?(live[k]?'#6b6a60':'#3f3f38'):(live[k]?'#c9c3ae':'#8f8b7a');x.fillRect(i*CS,j*CS,CS,CS);
     if(!wall[k]&&comms[k]>=0){x.fillStyle='rgba(79,170,120,.26)';x.fillRect(i*CS,j*CS,CS,CS)}}
   for(const r of robots)if(r.goal&&r.alive){x.strokeStyle=RCOL[r.id];x.setLineDash([4,4]);x.globalAlpha=r.id==sel?1:.5;x.beginPath();x.arc(r.goal[0]*CS+CS/2,r.goal[1]*CS+CS/2,GR*CS,0,7);x.stroke();x.setLineDash([]);x.globalAlpha=1}
-  const sr=robots[sel];if(sr&&sr.alive&&sr.path.length){x.strokeStyle=RCOL[sel];x.globalAlpha=.5;x.beginPath();x.moveTo(sr.x*CS+CS/2,sr.y*CS+CS/2);for(const c of sr.path)x.lineTo(c[0]*CS+CS/2,c[1]*CS+CS/2);x.stroke();x.globalAlpha=1}
+  const sr=robots[sel];if(sr&&sr.alive&&sr.link&&sr.path.length){x.strokeStyle=RCOL[sel];x.globalAlpha=.5;x.beginPath();x.moveTo(sr.x*CS+CS/2,sr.y*CS+CS/2);for(const c of sr.path)x.lineTo(c[0]*CS+CS/2,c[1]*CS+CS/2);x.stroke();x.globalAlpha=1}
   x.fillStyle='#4aa3d8';x.fillRect(base[0]*CS-3,base[1]*CS-3,CS+6,CS+6);for(const n of nodes.slice(1)){x.beginPath();x.arc(n[0]*CS+CS/2,n[1]*CS+CS/2,CS*.38,0,7);x.fill()}
   for(const a of arts)if(a.reported){x.fillStyle='#6fbf73';x.save();x.translate(a.i*CS+CS/2,a.j*CS+CS/2);x.rotate(.785);x.fillRect(-4,-4,8,8);x.restore()}
-  robots.forEach(r=>{const cx=r.x*CS+CS/2,cy=r.y*CS+CS/2;
+  robots.forEach(r=>{
+    if(!r.link){const lx=r.lastLink[0]*CS+CS/2,ly=r.lastLink[1]*CS+CS/2;x.strokeStyle=RCOL[r.id];x.globalAlpha=.55;x.setLineDash([2,3]);x.beginPath();x.arc(lx,ly,6,0,7);x.stroke();x.setLineDash([]);
+      x.fillStyle=RCOL[r.id];x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText('?',lx,ly+3);x.globalAlpha=1;return}   // last place we had contact
+    const cx=r.x*CS+CS/2,cy=r.y*CS+CS/2;
     if(!r.alive){x.strokeStyle='#888';x.lineWidth=2;x.beginPath();x.moveTo(cx-4,cy-4);x.lineTo(cx+4,cy+4);x.moveTo(cx+4,cy-4);x.lineTo(cx-4,cy+4);x.stroke();x.lineWidth=1;return}
     x.fillStyle=RCOL[r.id];x.beginPath();x.arc(cx,cy,5,0,7);x.fill();
-    if(!r.link){x.strokeStyle='#c8462a';x.lineWidth=2;x.beginPath();x.arc(cx,cy,7,0,7);x.stroke();x.lineWidth=1}
     if(r.id==sel){x.strokeStyle='#fff';x.beginPath();x.arc(cx,cy,9,0,7);x.stroke()}
     x.fillStyle='#1a1a14';x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText(r.id+1,cx,cy+3)});
   if(!started&&state=='play'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-230,cv.height-50,460,30);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText('Click the map to start the clock',cv.width/2,cv.height-30)}
@@ -161,17 +163,19 @@ function draw(){
 function buildCards(){const box=$('robots');box.innerHTML='';cards=robots.map(r=>{const b=document.createElement('button');b.className='rb';
   b.innerHTML=`<b style="color:${RCOL[r.id]}">●</b> Robot ${r.id+1}<small></small><div class="bat"><i></i></div>`;b.onclick=()=>{sel=r.id;updateUI()};box.appendChild(b);return{b,small:b.querySelector('small'),bar:b.querySelector('i')}});updateUI()}
 function updateUI(){
-  robots.forEach((r,n)=>{const c=cards[n];const st=!r.alive?'lost':r.state=='idle'?(r.link?'ready':'out of range'):r.state=='moving'?'en route':r.state=='exploring'?'exploring':r.state=='returning'?'returning to comms':r.state=='arrived'?'arrived':r.state=='blocked'?'no path':r.state;
-    const t=`${st}${r.alive&&!r.link?' · NO LINK':''} · relays ${r.relays} · ${Math.max(0,Math.round(r.battery/BATT*100))}%`;if(c.small.textContent!==t)c.small.textContent=t;
-    const w=Math.max(0,r.battery)/BATT*100+'%';if(c.bar.style.width!==w)c.bar.style.width=w;
-    c.b.classList.toggle('sel',n==sel);c.b.classList.toggle('dead',!r.alive);c.small.style.color=(r.alive&&!r.link)?'#c8462a':''});
-  $('s-rep').textContent=arts.filter(a=>a.reported).length+' / '+NART;$('s-alive').textContent=robots.filter(r=>r.alive).length;$('s-map').textContent=Math.round(mapped()*100)+'%';
+  robots.forEach((r,n)=>{const c=cards[n],t=r.tel,live=r.link;
+    const stName=v=>v=='idle'?'ready':v=='moving'?'en route':v=='exploring'?'exploring':v=='returning'?'returning':v=='arrived'?'arrived':v=='blocked'?'no path':v=='dead'?'lost':v;
+    const txt=live?`${stName(r.state)} · relays ${r.relays} · ${Math.max(0,Math.round(r.battery/BATT*100))}%`:`NO LINK · last: ${stName(t.state)} · ~${Math.max(0,Math.round(t.battery/BATT*100))}%`;
+    if(c.small.textContent!==txt)c.small.textContent=txt;
+    const w=Math.max(0,(live?r.battery:t.battery))/BATT*100+'%';if(c.bar.style.width!==w)c.bar.style.width=w;
+    c.b.classList.toggle('sel',n==sel);c.b.classList.toggle('dead',live&&!r.alive);c.small.style.color=live?'':'#c8462a'});
+  $('s-rep').textContent=arts.filter(a=>a.reported).length+' / '+NART;$('s-alive').textContent=robots.filter(r=>r.alive||!r.link).length;$('s-map').textContent=Math.round(mapped()*100)+'%';
   const left=Math.max(0,Math.ceil((MAXT-ticks)/TPS));$('s-time').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('s-best').textContent=best?best+' pts':'–'}
 let last=performance.now(),uiT=0;
 function loop(now){const dt=(now-last)/1000;last=now;if(state=='play'&&!paused&&started){tickAcc+=Math.min(dt,.1)*speed;while(tickAcc>=TICK&&state=='play'){tickAcc-=TICK;tick()}}
   if(msgT>0)msgT-=dt;uiT+=dt;if(uiT>.2){uiT=0;updateUI()}draw();requestAnimationFrame(loop)}
 cv.addEventListener('pointerdown',e=>{if(state!='play')return;const rc=cv.getBoundingClientRect(),i=Math.floor((e.clientX-rc.left)/rc.width*GW),j=Math.floor((e.clientY-rc.top)/rc.height*GH);
-  const hit=robots.find(r=>r.alive&&Math.hypot(r.x-i,r.y-j)<=2);if(hit){sel=hit.id;updateUI();return}
+  const hit=robots.find(r=>r.alive&&r.link&&Math.hypot(r.x-i,r.y-j)<=2);if(hit){sel=hit.id;updateUI();return}
   const r=robots[sel];if(!r||!r.alive||!inb(i,j))return;
   if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}
   if(seen[idx(i,j)]&&wall[idx(i,j)]){msg='That is solid rock';msgT=1.5;return}
