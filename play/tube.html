@@ -48,7 +48,7 @@ function draw(res){
   x.fillStyle=bg;x.fillRect(0,0,W,H);
   x.strokeStyle=css('--line');x.lineWidth=1;for(let i=40;i<W;i+=40){x.beginPath();x.moveTo(i,0);x.lineTo(i,H);x.stroke()}for(let j=40;j<H;j+=40){x.beginPath();x.moveTo(0,j);x.lineTo(W,j);x.stroke()}
   if(res){const col=res.clear?ac:'#c8462a';x.fillStyle=col;
-    res.tb.forEach((p,k)=>{x.globalAlpha=.10;x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()});x.globalAlpha=.7;x.strokeStyle=col;x.lineWidth=2;x.beginPath();res.tb.forEach((p,k)=>k?x.lineTo(p.x,p.y):x.moveTo(p.x,p.y));x.stroke();x.globalAlpha=1}
+    res.tb.forEach((p,k)=>{x.globalAlpha=.16;x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()});x.globalAlpha=.7;x.strokeStyle=col;x.lineWidth=2;x.beginPath();res.tb.forEach((p,k)=>k?x.lineTo(p.x,p.y):x.moveTo(p.x,p.y));x.stroke();x.globalAlpha=1}
   for(const o of obs){x.fillStyle=mu;x.globalAlpha=.85;x.beginPath();x.arc(o.x,o.y,o.r,0,7);x.fill();x.globalAlpha=1}
   if(state!='ready'||true){x.save();x.translate(veh.x,veh.y);x.rotate(Math.atan2(veh.vy,veh.vx)||0);if(inv>0&&Math.floor(inv*10)%2)x.globalAlpha=.35;
     x.fillStyle=tx;x.beginPath();x.moveTo(R+4,0);x.lineTo(-R,-R*.9);x.lineTo(-R*.5,0);x.lineTo(-R,R*.9);x.closePath();x.fill();x.restore()}
