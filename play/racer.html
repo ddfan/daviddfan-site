@@ -97,11 +97,11 @@ function step(dt){
   const t=typeAt(veh.x,veh.y);let cap=CAP[t];
   const grade=(elevAt(veh.x+Math.cos(veh.th),veh.y+Math.sin(veh.th))-elevAt(veh.x,veh.y))*HS;cap*=Math.max(.4,Math.min(1.35,1-.5*grade));
   const wet=t==4||t==5,wasWet=veh.lastType==4||veh.lastType==5;
-  if(wet&&!wasWet&&veh.v>4){veh.v*=.35;msg=t==4?'Bogged down in the creek!':'Ditch! You lost your momentum.';msgT=1.6}
+  if(wet&&!wasWet){if(veh.v>8){veh.v*=.3;stuckT=2.2;msg='Stuck in '+(t==4?'the creek':'a ditch')+'! Back out (↓) or wait to dig free';msgT=2}else if(veh.v>4){veh.v*=.5;msg=t==4?'Slow going through the creek':'Ditch: ease off before crossing';msgT=1.4}}
   veh.lastType=t;
-  if(wet&&Math.abs(veh.v)<.9)stuckT+=dt;else stuckT=Math.max(0,stuckT-dt*2);
-  const stuck=wet&&stuckT>.8;if(stuck&&msgT<=0){msg='Stuck! Reverse out with ↓';msgT=1.2}
-  let acc=0;if(up)acc+=9*(wet?(stuck?.08:.35):(t==1||t==6?1.35:1));if(dn)acc-=(veh.v>0.5?14:6);if(keys[' '])acc-=veh.v>0?18:-18;
+  if(wet&&stuckT>0)stuckT-=dt*(veh.v<-.5?3:1);if(!wet)stuckT=0;
+  const stuck=wet&&stuckT>0;
+  let acc=0;if(up)acc+=9*(wet?(stuck?.12:.9):(t==1||t==6?1.35:1));if(dn)acc-=(veh.v>0.5?14:6);if(keys[' '])acc-=veh.v>0?18:-18;
   veh.v+=(acc-DRAG[t]*veh.v)*dt;if(veh.v>cap)veh.v-=(veh.v-cap)*4*dt;if(veh.v<-3.5)veh.v=-3.5;
   const turn=2.7*Math.min(1,Math.abs(veh.v)/3)/(1+Math.abs(veh.v)*.11)*Math.sign(veh.v||0);veh.th+=((Rr?1:0)-(L?1:0))*turn*dt;
   veh.x=Math.max(1,Math.min(M-2,veh.x+Math.cos(veh.th)*veh.v*dt));veh.y=Math.max(1,Math.min(M-2,veh.y+Math.sin(veh.th)*veh.v*dt));
