@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Off-road Racer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Fraunces:opsz,wght@9..144,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<div class="top"><a href="../index.html">← Home</a><span class="stat">inspired by DARPA RACER</span></div>
+<h1>Off-road Racer</h1>
+<p class="lead">Reach all six checkpoints as fast as you can. You only see what your sensors can see.</p>
+<div class="stage">
+<canvas id="c" width="768" height="480"></canvas>
+<div class="chips">
+  <div class="chip"><span>Time</span><b id="s-time">0.0 s</b></div>
+  <div class="chip"><span>Checkpoint</span><b id="s-cp">1 / 6</b></div>
+  <div class="chip"><span>Speed</span><b id="s-sp">0 km/h</b></div>
+  <div class="chip"><span>Terrain</span><b id="s-ter">trail</b></div>
+  <div class="chip"><span>Best</span><b id="s-best">–</b></div>
+</div>
+</div>
+<div class="legend" style="margin-top:14px"><span><i style="background:#bea678"></i>trail (boost)</span><span><i style="background:#aa966c"></i>game trail</span><span><i style="background:#7ea05c"></i>grass</span><span><i style="background:#587a46"></i>brush</span><span><i style="background:#3a5c3a"></i>forest</span><span><i style="background:#4e8ab8"></i>creek</span><span><i style="background:#705c44"></i>ditch</span></div>
+<p class="keys"><kbd>↑</kbd> gas · <kbd>↓</kbd> brake / reverse · <kbd>←</kbd><kbd>→</kbd> steer · <kbd>Space</kbd> handbrake · <kbd>R</kbd> restart. Creeks and ditches bog you down.</p>
+</div>
+<script>
+const M=160,CP=16,VW=48,VH=30,cv=document.getElementById('c'),x=cv.getContext('2d'),W=cv.width,H=cv.height,HS=30,RMAX=19,NCP=6,$=i=>document.getElementById(i);
+const K=(i,j)=>j*M+i,inb=(i,j)=>i>=0&&j>=0&&i<M&&j<M;
+const NAMES=['grass','trail','brush','forest','creek','ditch','game trail'],CAP=[10,18,6.2,3.2,1.6,2.2,11],DRAG=[.6,.3,1.5,3,7,5,.5],VEG=[0,0,1.2,5,0,0,0];
+const COL=[[126,160,92],[190,166,120],[88,122,70],[58,92,58],[78,138,184],[112,92,68],[170,150,108]];
+let elev,type,explored,visStamp,frame=0,veh,state,time,nextCp,keys={},best=0,msg='',msgT=0,stuckT=0;
+const START=[14,146],CPS=[[62,124],[112,104],[132,52],[84,40],[36,60],[26,18]];
+try{best=+localStorage.getItem('racerBest2')||0}catch(e){}
+function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function field(s){const r=rng(s),G=40,g=Array.from({length:G*G},()=>r()),sm=t=>t*t*(3-2*t);
+  const v=(px,py)=>{const i=Math.floor(px),j=Math.floor(py),u=sm(px-i),w=sm(py-j),a=g[(i%G)*G+j%G],b=g[((i+1)%G)*G+j%G],c=g[(i%G)*G+(j+1)%G],d=g[((i+1)%G)*G+(j+1)%G];return a*(1-u)*(1-w)+b*u*(1-w)+c*(1-u)*w+d*u*w};
+  return(px,py)=>(v(px,py)*.62+v(px*2.1+7,py*2.1+3)*.28+v(px*4.3+1,py*4.3+9)*.10)}
+function stamp(cx,cy,rad,t,only){const q=Math.ceil(rad)+1;for(let j=-q;j<=q;j++)for(let i=-q;i<=q;i++){const ii=Math.round(cx)+i,jj=Math.round(cy)+j;
+  if(inb(ii,jj)&&Math.hypot(i,j)<=rad+.35&&(!only||only.includes(type[K(ii,jj)])))type[K(ii,jj)]=t}}
+function poly(pts,rad,t,only){for(let s=0;s<pts.length-1;s++){const[x0,y0]=pts[s],[x1,y1]=pts[s+1],n=Math.ceil(Math.hypot(x1-x0,y1-y0)*2);for(let q=0;q<=n;q++)stamp(x0+(x1-x0)*q/n,y0+(y1-y0)*q/n,rad,t,only)}}
+function meander(x0,y0,x1,y1,amp,freq,ph){const pts=[],len=Math.hypot(x1-x0,y1-y0),nx=-(y1-y0)/len,ny=(x1-x0)/len;
+  for(let d=0;d<=len;d+=3){const o=amp*Math.sin(d*freq+ph)+amp*.4*Math.sin(d*freq*2.3+ph*1.7);pts.push([x0+(x1-x0)*d/len+nx*o,y0+(y1-y0)*d/len+ny*o])}pts.push([x1,y1]);return pts}
+// a trail that is wide in places, narrows to a game trail, and sometimes vanishes into the brush
+function nearType(cx,cy,types,rad){for(let j=-rad;j<=rad;j++)for(let i=-rad;i<=rad;i++){const ii=Math.round(cx)+i,jj=Math.round(cy)+j;if(inb(ii,jj)&&types.includes(type[K(ii,jj)]))return true}return false}
+function ribbon(pts,ph){let s=0;const total=pts.reduce((a,p,i)=>i?a+Math.hypot(p[0]-pts[i-1][0],p[1]-pts[i-1][1]):0,0);
+  for(let g=0;g<pts.length-1;g++){const[x0,y0]=pts[g],[x1,y1]=pts[g+1],L=Math.hypot(x1-x0,y1-y0),n=Math.ceil(L*2);
+    for(let q=0;q<=n;q++){const px=x0+(x1-x0)*q/n,py=y0+(y1-y0)*q/n,d=s+L*q/n;
+      const m=.5+.27*Math.sin(d*.12+ph)+.2*Math.sin(d*.047+ph*1.9)+.12*Math.sin(d*.31+ph*.6);
+      if(Math.min(d,total-d)<7||m>.52||nearType(px,py,[4,5],3))stamp(px,py,1.5,1);       // road (and always bridges/crossings)
+      else if(m>.34)stamp(px,py,.55,6);                                                      // narrow game trail
+      else stamp(px,py,1.3,2,[0,1,6])}                                                       // swallowed by brush
+    s+=L}}
+function gen(){
+  const E=field(2025),V=field(77),r=rng(31);
+  elev=new Float32Array(M*M);type=new Uint8Array(M*M);explored=new Uint8Array(M*M);visStamp=new Uint32Array(M*M);
+  const hills=[[88,114,11,.75],[140,66,11,.55],[58,52,9,.8],[40,100,10,.5],[120,138,12,.6],[20,50,9,.5],[100,20,8,.4]];
+  for(let j=0;j<M;j++)for(let i=0;i<M;i++){let e=.14+.14*E(i*.05,j*.05);for(const[cx,cy,sg,h]of hills)e+=h*Math.exp(-((i-cx)**2+(j-cy)**2)/(2*sg*sg));elev[K(i,j)]=Math.min(1,e);
+    if(V(i*.11,j*.11)>.66)type[K(i,j)]=2}
+  // patchy forests with ragged edges and a brush fringe
+  const forest=(cx,cy,rad)=>{const p1=r()*6,p2=r()*6;for(let j=Math.floor(cy-rad*1.6);j<=cy+rad*1.6;j++)for(let i=Math.floor(cx-rad*1.6);i<=cx+rad*1.6;i++){if(!inb(i,j))continue;
+    const d=Math.hypot(i-cx,j-cy),a=Math.atan2(j-cy,i-cx),edge=rad*(.8+.22*Math.sin(3*a+p1)+.14*Math.sin(5*a+p2));
+    if(d<edge){type[K(i,j)]=r()<.82?3:2}else if(d<edge*1.35&&r()<.55&&type[K(i,j)]==0)type[K(i,j)]=2}};
+  [[36,134,9],[74,66,7],[108,44,13],[132,116,11],[22,92,9],[66,18,8],[150,30,9],[90,140,10],[142,92,8],[50,36,7],[118,70,6]].forEach(f=>forest(...f));
+  // creeks and ditches: long, thin, linear features
+  poly(meander(98,160,104,48,5,.09,1.2),1.1,4);poly(meander(0,41,88,38,3,.1,.4),1.1,4);poly(meander(150,150,159,100,3,.12,2),1.0,4);
+  poly([[47,96],[46,159]],.85,5);poly([[92,76],[159,77]],.85,5);poly([[71,24],[72,72]],.85,5);poly([[8,84],[44,84]],.85,5);poly([[126,0],[124,40]],.85,5);
+  // the trail network: fast but indirect (it also overrides water and ditches, forming bridges and crossings)
+  const trails=[[[14,146],[26,152],[40,156],[52,152],[62,142],[64,132],[62,124]],
+    [[62,124],[60,108],[66,92],[82,84],[98,88],[106,98],[112,104]],
+    [[112,104],[118,94],[122,84],[124,70],[128,60],[132,52]],
+    [[132,52],[128,36],[116,26],[100,22],[90,28],[84,40]],
+    [[84,40],[76,52],[66,68],[52,72],[40,66],[36,60]],
+    [[36,60],[34,44],[40,34],[34,24],[26,18]]];
+  trails.forEach((t,n)=>ribbon(t,n*1.7+.6));
+  stamp(START[0],START[1],3,1);CPS.forEach(c=>stamp(c[0],c[1],2.6,1));
+  reset()}
+function reset(){stuckT=0;veh={x:START[0],y:START[1],th:-Math.PI/4,v:0,lastType:1};nextCp=0;time=0;state='ready';msg='';explored.fill(0);see();}
+const elevAt=(px,py)=>elev[K(Math.max(0,Math.min(M-1,Math.round(px))),Math.max(0,Math.min(M-1,Math.round(py))))];
+const typeAt=(px,py)=>type[K(Math.max(0,Math.min(M-1,Math.round(px))),Math.max(0,Math.min(M-1,Math.round(py))))];
+function see(){ // viewshed: terrain and vegetation occlude the sensor
+  frame++;const ex=veh.x,ey=veh.y,eye=elevAt(ex,ey)*HS+2.2,NR=300;
+  for(let n=0;n<NR;n++){const a=n/NR*6.2832,ca=Math.cos(a),sa=Math.sin(a);let ms=-1e9,lastK=-1;
+    for(let rr=1;rr<=RMAX;rr+=.7){const i=Math.round(ex+ca*rr),j=Math.round(ey+sa*rr);if(!inb(i,j))break;const k=K(i,j);if(k==lastK)continue;lastK=k;
+      const hg=elev[k]*HS,sg=(hg-eye)/rr;if(sg>=ms-1e-4){visStamp[k]=frame;explored[k]=1}
+      const so=(hg+VEG[type[k]]-eye)/rr;if(so>ms)ms=so}}
+  for(let j=-2;j<=2;j++)for(let i=-2;i<=2;i++){const ii=Math.round(ex)+i,jj=Math.round(ey)+j;if(inb(ii,jj)){visStamp[K(ii,jj)]=frame;explored[K(ii,jj)]=1}}}
+function step(dt){
+  if(state!='play'&&state!='ready')return;
+  const up=keys.ArrowUp||keys.w,dn=keys.ArrowDown||keys.s,L=keys.ArrowLeft||keys.a,Rr=keys.ArrowRight||keys.d;
+  if(state=='ready'&&(up||dn))state='play';if(state!='play')return;time+=dt;
+  const t=typeAt(veh.x,veh.y);let cap=CAP[t];
+  const grade=(elevAt(veh.x+Math.cos(veh.th),veh.y+Math.sin(veh.th))-elevAt(veh.x,veh.y))*HS;cap*=Math.max(.4,Math.min(1.35,1-.5*grade));
+  const wet=t==4||t==5,wasWet=veh.lastType==4||veh.lastType==5;
+  if(wet&&!wasWet){if(veh.v>8){veh.v*=.3;stuckT=2.2;msg='Stuck in '+(t==4?'the creek':'a ditch')+'! Back out (↓) or wait to dig free';msgT=2}else if(veh.v>4){veh.v*=.5;msg=t==4?'Slow going through the creek':'Ditch: ease off before crossing';msgT=1.4}}
+  veh.lastType=t;
+  if(wet&&stuckT>0)stuckT-=dt*(veh.v<-.5?3:1);if(!wet)stuckT=0;
+  const stuck=wet&&stuckT>0;
+  let acc=0;if(up)acc+=9*(wet?(stuck?.12:.9):(t==1||t==6?1.35:1));if(dn)acc-=(veh.v>0.5?14:6);if(keys[' '])acc-=veh.v>0?18:-18;
+  veh.v+=(acc-DRAG[t]*veh.v)*dt;if(veh.v>cap)veh.v-=(veh.v-cap)*4*dt;if(veh.v<-3.5)veh.v=-3.5;
+  const turn=2.7*Math.min(1,Math.abs(veh.v)/3)/(1+Math.abs(veh.v)*.11)*Math.sign(veh.v||0);veh.th+=((Rr?1:0)-(L?1:0))*turn*dt;
+  veh.x=Math.max(1,Math.min(M-2,veh.x+Math.cos(veh.th)*veh.v*dt));veh.y=Math.max(1,Math.min(M-2,veh.y+Math.sin(veh.th)*veh.v*dt));
+  if(msgT>0)msgT-=dt;
+  const c=CPS[nextCp];if(Math.hypot(c[0]-veh.x,c[1]-veh.y)<2.8){nextCp++;msg='Checkpoint '+nextCp+' of '+NCP;msgT=1.4;
+    if(nextCp>=NCP){state='done';if(!best||time<best){best=time;try{localStorage.setItem('racerBest2',best)}catch(e){}}}}
+  see()}
+const mm=document.createElement('canvas');mm.width=M;mm.height=M;const mx=mm.getContext('2d'),mid=mx.createImageData(M,M);let mmT=0;
+function drawMini(){for(let k=0;k<M*M;k++){const o=k*4;if(explored[k]){const c=COL[type[k]],sh=.7+.4*elev[k];mid.data[o]=c[0]*sh;mid.data[o+1]=c[1]*sh;mid.data[o+2]=c[2]*sh}else{mid.data[o]=18;mid.data[o+1]=19;mid.data[o+2]=14}mid.data[o+3]=255}mx.putImageData(mid,0,0)}
+function draw(){
+  x.fillStyle='#0f100c';x.fillRect(0,0,W,H);
+  const camX=veh.x*CP-W/2,camY=veh.y*CP-H/2,i0=Math.floor(camX/CP),j0=Math.floor(camY/CP);
+  for(let j=j0;j<=j0+VH+1;j++)for(let i=i0;i<=i0+VW+1;i++){if(!inb(i,j))continue;const k=K(i,j);if(!explored[k])continue;
+    const c=COL[type[k]],sh=.74+.5*elev[k],v=visStamp[k]==frame,f=v?1:.42,px=Math.floor(i*CP-camX),py=Math.floor(j*CP-camY);
+    x.fillStyle=`rgb(${c[0]*sh*f|0},${c[1]*sh*f|0},${c[2]*sh*f|0})`;x.fillRect(px,py,CP+1,CP+1);
+    if(type[k]==3){x.fillStyle=v?'#27432a':'#1b2c1e';x.beginPath();x.arc(px+CP/2,py+CP/2,CP*.46,0,7);x.fill()}
+    else if(type[k]==2&&((i*7+j*13)%3==0)){x.fillStyle=v?'#476a3a':'#2c3e27';x.fillRect(px+4,py+4,5,5)}}
+  CPS.forEach((c,n)=>{if(n<nextCp)return;const px=c[0]*CP-camX,py=c[1]*CP-camY;if(!explored[K(c[0],c[1])]&&n!=nextCp)return;if(px<-30||py<-30||px>W+30||py>H+30)return;
+    x.strokeStyle=n==nextCp?'#ffd24a':'#fff';x.lineWidth=n==nextCp?3:1.5;x.beginPath();x.arc(px,py,CP*1.3+(n==nextCp?Math.sin(performance.now()/200)*2:0),0,7);x.stroke();x.fillStyle=x.strokeStyle;x.font='500 12px DM Sans,sans-serif';x.textAlign='center';x.fillText(n+1,px,py+4)});
+  x.save();x.translate(W/2,H/2);x.rotate(veh.th);x.fillStyle='rgba(0,0,0,.28)';x.fillRect(-12,-8,26,18);x.fillStyle='#1c1d18';x.fillRect(-12,-8,24,16);x.fillStyle='#c8462a';x.fillRect(-8,-6,14,12);x.fillStyle='#e8e4d4';x.fillRect(4,-4,6,8);
+  x.fillStyle='#111';x.fillRect(-13,-10,7,4);x.fillRect(-13,6,7,4);x.fillRect(6,-10,7,4);x.fillRect(6,6,7,4);x.restore();
+  if(state!='done'){const c=CPS[nextCp],a=Math.atan2(c[1]-veh.y,c[0]-veh.x),d=Math.hypot(c[0]-veh.x,c[1]-veh.y);
+    if(d>8){const ax=W/2+Math.cos(a)*(H/2-24),ay=H/2+Math.sin(a)*(H/2-24);x.save();x.translate(ax,ay);x.rotate(a);x.fillStyle='#ffd24a';x.beginPath();x.moveTo(11,0);x.lineTo(-7,-8);x.lineTo(-3,0);x.lineTo(-7,8);x.closePath();x.fill();x.restore()}}
+  mmT++;if(mmT%6==0)drawMini();x.globalAlpha=.95;x.drawImage(mm,W-132,10,122,122);x.globalAlpha=1;x.strokeStyle='rgba(255,255,255,.5)';x.strokeRect(W-132,10,122,122);
+  x.fillStyle='#fff';x.beginPath();x.arc(W-132+veh.x/M*122,10+veh.y/M*122,2.5,0,7);x.fill();
+  CPS.forEach((c,n)=>{if(n>=nextCp&&(explored[K(c[0],c[1])]||n==nextCp)){x.fillStyle='#ffd24a';x.fillRect(W-132+c[0]/M*122-1.5,10+c[1]/M*122-1.5,3,3)}});
+  if(msgT>0){x.fillStyle='rgba(0,0,0,.5)';x.fillRect(W/2-150,16,300,30);x.fillStyle='#fff';x.textAlign='center';x.font='500 15px DM Sans,sans-serif';x.fillText(msg,W/2,36)}
+  if(state=='ready'||state=='done'){x.fillStyle='rgba(0,0,0,.45)';x.fillRect(0,0,W,H);x.fillStyle='#fff';x.textAlign='center';x.font='500 28px DM Sans,sans-serif';
+    x.fillText(state=='ready'?'Press ↑ or W to start':'Finished in '+time.toFixed(1)+' s',W/2,H/2-8);x.font='16px DM Sans,sans-serif';
+    x.fillText(state=='ready'?'Six checkpoints · you only see what your sensors see':(best?'Best '+best.toFixed(1)+' s · ':'')+'Press R to try again',W/2,H/2+22)}}
+function hud(){$('s-time').textContent=time.toFixed(1)+' s';$('s-cp').textContent=Math.min(nextCp+1,NCP)+' / '+NCP;$('s-sp').textContent=Math.max(0,Math.round(veh.v*6))+' km/h';$('s-ter').textContent=NAMES[typeAt(veh.x,veh.y)];$('s-best').textContent=best?best.toFixed(1)+' s':'–'}
+let last=performance.now();function loop(now){const dt=Math.min(.04,(now-last)/1000);last=now;step(dt);draw();hud();requestAnimationFrame(loop)}
+addEventListener('keydown',e=>{const k=e.key.length==1?e.key.toLowerCase():e.key;keys[k]=1;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();if(k=='r')reset()});
+addEventListener('keyup',e=>{const k=e.key.length==1?e.key.toLowerCase():e.key;keys[k]=0});
+gen();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mine Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Fraunces:opsz,wght@9..144,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<div class="top"><a href="../index.html">← Home</a><span class="stat">inspired by DARPA SubT</span></div>
+<h1>Mine Explorer</h1>
+<p class="lead">Map the mine with four robots in two minutes. Click a robot, then click the map.</p>
+<div class="stage">
+<canvas id="c" width="768" height="480"></canvas>
+<div class="robots" id="robots"></div>
+<div class="chips">
+  <div class="chip"><span>Time left</span><b id="s-time">2:00</b></div>
+  <div class="chip"><span>Reported</span><b id="s-rep">0 / 10</b></div>
+  <div class="chip"><span>Robots alive</span><b id="s-alive">4</b></div>
+  <div class="chip"><span>Mapped</span><b id="s-map">0%</b></div>
+  <div class="chip"><span>Best</span><b id="s-best">–</b></div>
+</div>
+<div class="bar" style="padding:2px 6px 8px;align-items:center">
+  <button id="spd">Speed 1×</button><button id="pause">Pause</button><button id="recall">Recall selected</button><button id="restart">Restart (new mine)</button>
+  <label class="stat" style="margin-left:auto">Return reserve <b id="rtcv">12%</b> <input type="range" id="rtc" min="0" max="40" value="12" style="vertical-align:middle;width:120px"></label>
+</div>
+</div>
+<div class="legend" style="margin-top:14px"><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.55)"></i>comms range</span><span><i style="background:#6fbf73"></i>reported</span><span><i style="background:#c8462a"></i>no link</span></div>
+<p class="keys">Robots explore on their own, drop relays, and head back when battery runs low. Findings upload only in comms range. <kbd>1</kbd>–<kbd>4</kbd> select · <kbd>R</kbd> recall · <kbd>Space</kbd> pause · <kbd>N</kbd> restart</p>
+</div>
+<script>
+const GW=128,GH=80,CS=6,cv=document.getElementById('c'),x=cv.getContext('2d');
+const idx=(i,j)=>j*GW+i,inb=(i,j)=>i>0&&j>0&&i<GW-1&&j<GH-1,$=i=>document.getElementById(i);
+const COMMS=15,BATT=330,IDLE_DRAIN=.25,MOVE_DRAIN=1,RELAYS=4,SENSE=6,NART=10,NROB=4,GR=3,TPS=7,TICK=1/TPS,MISSION=120,MAXT=MISSION*TPS;
+const RCOL=['#e0b84a','#e9805a','#b78cd8','#5cc4b5'];
+let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,floorTotal=0,best=0,rtc=12,cards=[],started=false;
+try{best=+localStorage.getItem('mineBest')||0}catch(e){}
+const rnd=n=>Math.floor(Math.random()*n);
+function carveRect(x0,y0,x1,y1){for(let j=y0;j<=y1;j++)for(let i=x0;i<=x1;i++)if(inb(i,j))wall[idx(i,j)]=0}
+function corridor(ax,ay,bx,by){ // 3-wide L-shaped tunnel
+  const h=(y,xa,xb)=>carveRect(Math.min(xa,xb),y-1,Math.max(xa,xb),y+1),v=(xx,ya,yb)=>carveRect(xx-1,Math.min(ya,yb),xx+1,Math.max(ya,yb));
+  if(Math.random()<.5){h(ay,ax,bx);v(bx,ay,by)}else{v(ax,ay,by);h(by,ax,bx)}}
+function bfs(srcs,maxd=1e9){const d=new Int32Array(GW*GH).fill(-1),q=[];for(const s of srcs){d[idx(s[0],s[1])]=0;q.push(s)}
+  for(let h=0;h<q.length;h++){const[i,j]=q[h],dd=d[idx(i,j)];if(dd>=maxd)continue;for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inb(ni,nj)||wall[idx(ni,nj)]||d[idx(ni,nj)]>=0)continue;d[idx(ni,nj)]=dd+1;q.push([ni,nj])}}return d}
+function genMine(){
+  for(;;){
+    wall=new Uint8Array(GW*GH).fill(1);rooms=[];
+    const mk=(x,y,w,h)=>({x,y,w,h,cx:x+(w>>1),cy:y+(h>>1)});
+    rooms.push(mk(3,GH/2-4,11,9));
+    for(let t=0;t<600&&rooms.length<18;t++){const w=7+rnd(8),h=6+rnd(6),r=mk(2+rnd(GW-w-4),2+rnd(GH-h-4),w,h);
+      if(rooms.every(o=>r.x>o.x+o.w+5||r.x+r.w+5<o.x||r.y>o.y+o.h+5||r.y+r.h+5<o.y))rooms.push(r)}
+    if(rooms.length<12)continue;
+    for(const r of rooms)carveRect(r.x,r.y,r.x+r.w-1,r.y+r.h-1);
+    const inT=[0],edges=[];while(inT.length<rooms.length){let b2=null;for(const a of inT)for(let b=0;b<rooms.length;b++){if(inT.includes(b))continue;const d=Math.abs(rooms[a].cx-rooms[b].cx)+Math.abs(rooms[a].cy-rooms[b].cy);if(!b2||d<b2.d)b2={a,b,d}}inT.push(b2.b);edges.push(b2)}
+    for(const e of edges)corridor(rooms[e.a].cx,rooms[e.a].cy,rooms[e.b].cx,rooms[e.b].cy);
+    for(let k=0;k<4;k++){const a=rnd(rooms.length),b=rnd(rooms.length);if(a!=b)corridor(rooms[a].cx,rooms[a].cy,rooms[b].cx,rooms[b].cy)}
+    const stubs=[];for(let k=0;k<11;k++){const r=rooms[1+rnd(rooms.length-1)],dir=[[1,0],[-1,0],[0,1],[0,-1]][rnd(4)],len=9+rnd(12);
+      let px=r.cx,py=r.cy;while(!wall[idx(px,py)])px+=dir[0],py+=dir[1];px-=dir[0];py-=dir[1];if(!inb(px,py))continue;
+      const ex=px+dir[0]*len,ey=py+dir[1]*len;if(!inb(ex,ey)||!inb(ex+dir[0]*2,ey+dir[1]*2))continue;
+      if(dir[0])carveRect(Math.min(px,ex),py-1,Math.max(px,ex),py+1);else carveRect(px-1,Math.min(py,ey),px+1,Math.max(py,ey));stubs.push([ex,ey])}
+    for(const r of rooms.slice(1))if(r.w>=10&&r.h>=8){const px=r.x+2+rnd(r.w-5),py=r.y+2+rnd(r.h-5);if(Math.abs(px-r.cx)+Math.abs(py-r.cy)>3){for(let a=0;a<2;a++)for(let b=0;b<2;b++)wall[idx(px+a,py+b)]=1}}
+    base=[rooms[0].cx,rooms[0].cy];wall[idx(...base)]=0;
+    const d=bfs([base]);floorTotal=0;for(let k=0;k<GW*GH;k++)if(!wall[k]&&d[k]>=0)floorTotal++;
+    const cand=[];for(const r of rooms.slice(1))for(let t=0;t<3;t++)cand.push([r.x+1+rnd(r.w-2),r.y+1+rnd(r.h-2)]);for(const s of stubs)cand.push(s);
+    arts=[];for(const c of cand.sort(()=>Math.random()-.5)){if(wall[idx(...c)]||d[idx(...c)]<22)continue;if(arts.every(a=>Math.hypot(a.i-c[0],a.j-c[1])>9))arts.push({i:c[0],j:c[1],reported:false});if(arts.length>=NART)break}
+    if(arts.length<NART)continue;
+    break}
+  seen=new Uint8Array(GW*GH);
+  robots=[];for(let n=0;n<NROB;n++){const px=base[0]-1+(n%2)*2,py=base[1]-1+((n/2)|0)*2;
+    robots.push({id:n,x:px,y:py,battery:BATT,relays:RELAYS,goal:null,path:[],state:'idle',alive:true,know:new Uint8Array(GW*GH),dirty:new Set(),found:new Set(),link:true,outTicks:0,returning:false,explore:false,ex:null,lastLink:[px,py],tel:{state:'idle',battery:BATT,relays:RELAYS}})}
+  nodes=[base.slice()];comms=bfs(nodes,COMMS);sel=0;state='play';started=false;ticks=0;tickAcc=0;paused=false;msgT=0;
+  $('pause').textContent='Pause';$('pause').classList.remove('on');
+  for(const r of robots){sense(r);flush(r)}
+  buildCards()}
+function sense(r){
+  for(let j=Math.max(1,r.y-SENSE);j<=Math.min(GH-2,r.y+SENSE);j++)for(let i=Math.max(1,r.x-SENSE);i<=Math.min(GW-2,r.x+SENSE);i++){
+    if(Math.hypot(i-r.x,j-r.y)>SENSE)continue;let ok=true,x0=r.x,y0=r.y,dx=Math.abs(i-x0),dy=Math.abs(j-y0),sx=x0<i?1:-1,sy=y0<j?1:-1,e=dx-dy;
+    for(;;){if(x0==i&&y0==j)break;const e2=2*e;if(e2>-dy){e-=dy;x0+=sx}if(e2<dx){e+=dx;y0+=sy}if(x0==i&&y0==j)break;if(wall[idx(x0,y0)]){ok=false;break}}
+    if(ok){const k=idx(i,j);if(!r.know[k]){r.know[k]=1;if(!seen[k])r.dirty.add(k)}}}
+  for(let n=0;n<arts.length;n++){const a=arts[n];if(!a.reported&&Math.hypot(a.i-r.x,a.j-r.y)<=4&&r.know[idx(a.i,a.j)])r.found.add(n)}}
+function flush(r){for(const k of r.dirty)seen[k]=1;r.dirty.clear();for(const n of r.found)arts[n].reported=true;r.found.clear()}
+const known=(r,k)=>r.know[k]||seen[k];
+function plan(r,gp,gr){ // A* on the robot's own map; unknown space is assumed passable
+  const goalOK=(i,j)=>Math.hypot(i-gp[0],j-gp[1])<=gr;
+  const open=[],g=new Float32Array(GW*GH).fill(1e9),par=new Int32Array(GW*GH).fill(-1),closed=new Uint8Array(GW*GH);
+  const h=(i,j)=>Math.max(0,Math.abs(i-gp[0])+Math.abs(j-gp[1])-gr);
+  const push=(f,k)=>{open.push([f,k]);let c=open.length-1;while(c>0){const p=(c-1)>>1;if(open[p][0]<=open[c][0])break;[open[p],open[c]]=[open[c],open[p]];c=p}};
+  const pop=()=>{const t=open[0],l=open.pop();if(open.length){open[0]=l;let c=0;for(;;){let a=2*c+1,b=a+1,m=c;if(a<open.length&&open[a][0]<open[m][0])m=a;if(b<open.length&&open[b][0]<open[m][0])m=b;if(m==c)break;[open[m],open[c]]=[open[c],open[m]];c=m}}return t};
+  const s=idx(r.x,r.y);g[s]=0;push(h(r.x,r.y),s);
+  while(open.length){const[,k]=pop();if(closed[k])continue;closed[k]=1;const i=k%GW,j=(k/GW)|0;
+    if(goalOK(i,j)){const p=[];let c=k;while(c!=s){p.push([c%GW,(c/GW)|0]);c=par[c]}return p.reverse()}
+    for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inb(ni,nj))continue;const nk=idx(ni,nj);if(closed[nk])continue;
+      const kn=known(r,nk);if(kn&&wall[nk])continue;const ng=g[k]+(kn?1:1.4);if(ng<g[nk]){g[nk]=ng;par[nk]=k;push(ng+h(ni,nj),nk)}}}
+  return null}
+// nearest frontier (known floor next to unknown space) on the robot's own map, biased toward its goal area
+function frontier(r){
+  const d=new Int32Array(GW*GH).fill(-1),q=[[r.x,r.y]];d[idx(r.x,r.y)]=0;let best=null,bs=1e9;
+  for(let h=0;h<q.length;h++){const[i,j]=q[h],dd=d[idx(i,j)];
+    if(dd>0){let fr=false;for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const nk=idx(i+a,j+b);if(inb(i+a,j+b)&&!known(r,nk)){fr=true;break}}
+      if(fr){const sc=dd+.6*Math.hypot(i-r.goal[0],j-r.goal[1]);if(sc<bs){bs=sc;best=[i,j]}}}
+    if(dd>=70)continue;
+    for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inb(ni,nj))continue;const nk=idx(ni,nj);if(d[nk]>=0||!known(r,nk)||wall[nk])continue;d[nk]=dd+1;q.push([ni,nj])}}
+  return best}
+// battery-aware retreat: how far (known path) is the nearest comms-covered cell?
+function backDist(r){const d=new Int32Array(GW*GH).fill(-1),q=[[r.x,r.y]];d[idx(r.x,r.y)]=0;
+  for(let h=0;h<q.length;h++){const[i,j]=q[h],dd=d[idx(i,j)];if(comms[idx(i,j)]>=0)return{d:dd,cell:[i,j]};
+    for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inb(ni,nj))continue;const nk=idx(ni,nj);if(d[nk]>=0||!known(r,nk)||wall[nk])continue;d[nk]=dd+1;q.push([ni,nj])}}
+  return{d:Math.hypot(r.x-r.lastLink[0],r.y-r.lastLink[1])*1.5,cell:r.lastLink.slice()}}
+function robotTick(r){
+  if(!r.alive)return;
+  r.battery-=IDLE_DRAIN;
+  if(r.battery<=0){r.alive=false;r.state='dead';r.path=[];if(r.link){r.tel={state:'dead',battery:0,relays:r.relays};msg='Robot '+(r.id+1)+' lost: battery depleted';msgT=4}return}
+  const goalMode=r.goal&&r.state!='arrived'&&r.state!='exploring';
+  if(goalMode){
+    if(!(r.state=='blocked'&&ticks%10!=0)){
+      if(!r.path.length||r.path.some(c=>known(r,idx(c[0],c[1]))&&wall[idx(c[0],c[1])])||ticks%25==0){const p=plan(r,r.goal,r.returning?0:GR);if(p){r.path=p;r.state=r.returning?'returning':'moving'}else{r.path=[];r.state='blocked'}}}
+    if(Math.hypot(r.x-r.goal[0],r.y-r.goal[1])<=(r.returning?0:GR)){r.path=[];r.state=r.explore?'exploring':'arrived';r.ex=null}
+    else if(r.path.length){const n=r.path[0],k=idx(n[0],n[1]);if(wall[k]){r.know[k]=1;if(!seen[k])r.dirty.add(k);r.path=[]}else{r.x=n[0];r.y=n[1];r.path.shift();r.battery-=MOVE_DRAIN}}}
+  else if(r.state=='exploring'){
+    const stale=!r.ex||Math.hypot(r.x-r.ex[0],r.y-r.ex[1])<=1.2||!r.path.length;
+    if(stale){r.ex=frontier(r);r.path=[];if(r.ex){const p=plan(r,r.ex,1);if(p)r.path=p;else r.ex=null}if(!r.ex){r.state='arrived';msg='Robot '+(r.id+1)+' has nothing left to explore here';msgT=2.5}}
+    if(r.path.length){const n=r.path[0],k=idx(n[0],n[1]);if(wall[k]){r.know[k]=1;if(!seen[k])r.dirty.add(k);r.path=[]}else{r.x=n[0];r.y=n[1];r.path.shift();r.battery-=MOVE_DRAIN}}}
+  sense(r);
+  const cd=comms[idx(r.x,r.y)];r.link=cd>=0;
+  if(r.link){r.lastLink=[r.x,r.y];r.outTicks=0;flush(r);r.tel={state:r.state,battery:r.battery,relays:r.relays};
+    if(r.returning){r.returning=false;r.goal=null;r.path=[];r.state='idle';msg='Robot '+(r.id+1)+' is back in comms';msgT=2.5}}
+  else if(!r.returning){const bd=backDist(r),need=bd.d*(MOVE_DRAIN+IDLE_DRAIN)+rtc/100*BATT;
+    if(r.battery<=need){r.returning=true;r.explore=false;r.goal=bd.cell;r.path=[];r.state='returning';msg='Robot '+(r.id+1)+' heading back to comms: battery getting low';msgT=3}}
+  if(r.link&&r.relays>0&&cd>=COMMS-3&&(r.state=='moving'||r.state=='exploring')){r.relays--;r.battery-=2;nodes.push([r.x,r.y]);comms=bfs(nodes,COMMS);r.link=true}}
+function tick(){ticks++;for(const r of robots)robotTick(r);
+  const rep=arts.filter(a=>a.reported).length;
+  if(state=='play'&&(rep==NART||robots.every(r=>!r.alive)||ticks>=MAXT))endMission()}
+function score(){return arts.filter(a=>a.reported).length*100+robots.filter(r=>r.alive).length*25+Math.round(mapped()*100)}
+function mapped(){let c=0;for(let k=0;k<GW*GH;k++)if(seen[k]&&!wall[k])c++;return c/floorTotal}
+function endMission(){if(state!='play')return;state='over';const s=score();if(s>best){best=s;try{localStorage.setItem('mineBest',best)}catch(e){}}}
+function draw(){
+  x.fillStyle='#14150f';x.fillRect(0,0,cv.width,cv.height);
+  const live=new Uint8Array(GW*GH);
+  for(const r of robots)if(r.alive&&r.link)for(let j=Math.max(1,r.y-SENSE);j<=Math.min(GH-2,r.y+SENSE);j++)for(let i=Math.max(1,r.x-SENSE);i<=Math.min(GW-2,r.x+SENSE);i++)if(r.know[idx(i,j)]&&Math.hypot(i-r.x,j-r.y)<=SENSE)live[idx(i,j)]=1;
+  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const k=idx(i,j);if(!seen[k])continue;
+    x.fillStyle=wall[k]?(live[k]?'#6b6a60':'#3f3f38'):(live[k]?'#c9c3ae':'#8f8b7a');x.fillRect(i*CS,j*CS,CS,CS);
+    if(!wall[k]&&comms[k]>=0){x.fillStyle='rgba(79,170,120,.26)';x.fillRect(i*CS,j*CS,CS,CS)}}
+  for(const r of robots)if(r.goal&&r.alive){x.strokeStyle=RCOL[r.id];x.setLineDash([4,4]);x.globalAlpha=r.id==sel?1:.5;x.beginPath();x.arc(r.goal[0]*CS+CS/2,r.goal[1]*CS+CS/2,GR*CS,0,7);x.stroke();x.setLineDash([]);x.globalAlpha=1}
+  const sr=robots[sel];if(sr&&sr.alive&&sr.link&&sr.path.length){x.strokeStyle=RCOL[sel];x.globalAlpha=.5;x.beginPath();x.moveTo(sr.x*CS+CS/2,sr.y*CS+CS/2);for(const c of sr.path)x.lineTo(c[0]*CS+CS/2,c[1]*CS+CS/2);x.stroke();x.globalAlpha=1}
+  x.fillStyle='#4aa3d8';x.fillRect(base[0]*CS-3,base[1]*CS-3,CS+6,CS+6);for(const n of nodes.slice(1)){x.beginPath();x.arc(n[0]*CS+CS/2,n[1]*CS+CS/2,CS*.38,0,7);x.fill()}
+  for(const a of arts)if(a.reported){x.fillStyle='#6fbf73';x.save();x.translate(a.i*CS+CS/2,a.j*CS+CS/2);x.rotate(.785);x.fillRect(-4,-4,8,8);x.restore()}
+  robots.forEach(r=>{
+    if(!r.link){const lx=r.lastLink[0]*CS+CS/2,ly=r.lastLink[1]*CS+CS/2;x.strokeStyle=RCOL[r.id];x.globalAlpha=.55;x.setLineDash([2,3]);x.beginPath();x.arc(lx,ly,6,0,7);x.stroke();x.setLineDash([]);
+      x.fillStyle=RCOL[r.id];x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText('?',lx,ly+3);x.globalAlpha=1;return}   // last place we had contact
+    const cx=r.x*CS+CS/2,cy=r.y*CS+CS/2;
+    if(!r.alive){x.strokeStyle='#888';x.lineWidth=2;x.beginPath();x.moveTo(cx-4,cy-4);x.lineTo(cx+4,cy+4);x.moveTo(cx+4,cy-4);x.lineTo(cx-4,cy+4);x.stroke();x.lineWidth=1;return}
+    x.fillStyle=RCOL[r.id];x.beginPath();x.arc(cx,cy,5,0,7);x.fill();
+    if(r.id==sel){x.strokeStyle='#fff';x.beginPath();x.arc(cx,cy,9,0,7);x.stroke()}
+    x.fillStyle='#1a1a14';x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText(r.id+1,cx,cy+3)});
+  if(!started&&state=='play'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-230,cv.height-50,460,30);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText('Click the map to start the clock',cv.width/2,cv.height-30)}
+  if(msgT>0){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(cv.width/2-170,10,340,28);x.fillStyle='#fff';x.textAlign='center';x.font='500 14px DM Sans,sans-serif';x.fillText(msg,cv.width/2,29)}
+  if(state=='over'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,cv.width,cv.height);x.fillStyle='#fff';x.textAlign='center';x.font='500 28px DM Sans,sans-serif';
+    x.fillText((ticks>=MAXT?'Time is up: ':'Mission over: ')+score()+' points',cv.width/2,cv.height/2-8);x.font='16px DM Sans,sans-serif';x.fillText(arts.filter(a=>a.reported).length+' of '+NART+' artifacts reported · '+robots.filter(r=>r.alive).length+' robots survived · press N to play a new mine',cv.width/2,cv.height/2+22)}}
+// robot cards are built once and only updated in place, so clicks never get lost to a re-render
+function buildCards(){const box=$('robots');box.innerHTML='';cards=robots.map(r=>{const b=document.createElement('button');b.className='rb';
+  b.innerHTML=`<b style="color:${RCOL[r.id]}">●</b> Robot ${r.id+1}<small></small><div class="bat"><i></i></div>`;b.onclick=()=>{sel=r.id;updateUI()};box.appendChild(b);return{b,small:b.querySelector('small'),bar:b.querySelector('i')}});updateUI()}
+function updateUI(){
+  robots.forEach((r,n)=>{const c=cards[n],t=r.tel,live=r.link;
+    const stName=v=>v=='idle'?'ready':v=='moving'?'en route':v=='exploring'?'exploring':v=='returning'?'returning':v=='arrived'?'arrived':v=='blocked'?'no path':v=='dead'?'lost':v;
+    const txt=live?`${stName(r.state)} · relays ${r.relays} · ${Math.max(0,Math.round(r.battery/BATT*100))}%`:`NO LINK · last: ${stName(t.state)} · ~${Math.max(0,Math.round(t.battery/BATT*100))}%`;
+    if(c.small.textContent!==txt)c.small.textContent=txt;
+    const w=Math.max(0,(live?r.battery:t.battery))/BATT*100+'%';if(c.bar.style.width!==w)c.bar.style.width=w;
+    c.b.classList.toggle('sel',n==sel);c.b.classList.toggle('dead',live&&!r.alive);c.small.style.color=live?'':'#c8462a'});
+  $('s-rep').textContent=arts.filter(a=>a.reported).length+' / '+NART;$('s-alive').textContent=robots.filter(r=>r.alive||!r.link).length;$('s-map').textContent=Math.round(mapped()*100)+'%';
+  const left=Math.max(0,Math.ceil((MAXT-ticks)/TPS));$('s-time').textContent=Math.floor(left/60)+':'+String(left%60).padStart(2,'0');$('s-best').textContent=best?best+' pts':'–'}
+let last=performance.now(),uiT=0;
+function loop(now){const dt=(now-last)/1000;last=now;if(state=='play'&&!paused&&started){tickAcc+=Math.min(dt,.1)*speed;while(tickAcc>=TICK&&state=='play'){tickAcc-=TICK;tick()}}
+  if(msgT>0)msgT-=dt;uiT+=dt;if(uiT>.2){uiT=0;updateUI()}draw();requestAnimationFrame(loop)}
+cv.addEventListener('pointerdown',e=>{if(state!='play')return;const rc=cv.getBoundingClientRect(),i=Math.floor((e.clientX-rc.left)/rc.width*GW),j=Math.floor((e.clientY-rc.top)/rc.height*GH);
+  const hit=robots.find(r=>r.alive&&r.link&&Math.hypot(r.x-i,r.y-j)<=2);if(hit){sel=hit.id;updateUI();return}
+  const r=robots[sel];if(!r||!r.alive||!inb(i,j))return;
+  if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}
+  if(seen[idx(i,j)]&&wall[idx(i,j)]){msg='That is solid rock';msgT=1.5;return}
+  r.goal=[i,j];r.path=[];r.state='moving';r.returning=false;r.explore=true;r.ex=null;started=true;updateUI()});
+$('spd').onclick=e=>{speed=speed==1?2:speed==2?4:1;e.target.textContent='Speed '+speed+'×'};
+$('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume':'Pause';e.target.classList.toggle('on',paused)};
+$('recall').onclick=recall;$('restart').onclick=genMine;
+$('rtc').oninput=e=>{rtc=+e.target.value;$('rtcv').textContent=rtc+'%'};
+function recall(){const r=robots[sel];if(!r||!r.alive||state!='play')return;if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}r.goal=base.slice();r.path=[];r.state='moving';r.returning=false;r.explore=false;r.ex=null;started=true}
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k>='1'&&k<='4'){sel=+k-1;updateUI()}else if(k==' '){e.preventDefault();$('pause').click()}else if(k=='r')recall();else if(k=='n')genMine()});
+genMine();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
