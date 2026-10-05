@@ -48,7 +48,7 @@ function draw(){
       else if(view){let m=-1e9;for(let a=0;a<4;a++)m=Math.max(m,Q[k*4+a]);x.globalAlpha=Math.max(0,Math.min(1,m))*.5;x.fillStyle=ac;x.fillRect(px,py,C,C);x.globalAlpha=1}}
     x.strokeStyle=ln;x.strokeRect(px,py,C,C);
     if(view&&!wall[k]&&!(i==goal[0]&&j==goal[1])){let b=0;for(let a=1;a<4;a++)if(Q[k*4+a]>Q[k*4+b])b=a;
-      if(Q[k*4+b]!=0){x.strokeStyle=tx;x.lineWidth=2;x.beginPath();const cx=px+C/2,cy=py+C/2;x.moveTo(cx-A[b][0]*C*.25,cy-A[b][1]*C*.25);x.lineTo(cx+A[b][0]*C*.25,cy+A[b][1]*C*.25);x.stroke();x.lineWidth=1}}}
+      if(Q[k*4+b]!=0){x.strokeStyle=tx;x.lineWidth=2;x.beginPath();const cx=px+C/2,cy=py+C/2;x.moveTo(cx-A[b][0]*C*.25,cy-A[b][1]*C*.25);x.lineTo(cx+A[b][0]*C*.25,cy+A[b][1]*C*.25);x.stroke();x.lineWidth=1;x.fillStyle=tx;x.beginPath();const tx2=cx+A[b][0]*C*.3,ty2=cy+A[b][1]*C*.3,px2=-A[b][1],py2=A[b][0];x.moveTo(tx2,ty2);x.lineTo(tx2-A[b][0]*C*.14+px2*C*.1,ty2-A[b][1]*C*.14+py2*C*.1);x.lineTo(tx2-A[b][0]*C*.14-px2*C*.1,ty2-A[b][1]*C*.14-py2*C*.1);x.closePath();x.fill()}}}
   x.fillStyle=ac;trail.forEach((p,t)=>{x.globalAlpha=t/trail.length*.4;x.fillRect(p[0]*C+C*.3,p[1]*C+C*.3,C*.4,C*.4)});x.globalAlpha=1;
   x.fillStyle=ac;x.beginPath();x.arc(goal[0]*C+C/2,goal[1]*C+C/2,C*.36,0,7);x.fill();
   x.fillStyle=tx;x.beginPath();x.arc(pos[0]*C+C/2,pos[1]*C+C/2,C*.3,0,7);x.fill();x.fillStyle=bg;x.fillRect(pos[0]*C+C*.38,pos[1]*C+C*.38,C*.24,C*.24)}
