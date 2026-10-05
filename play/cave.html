@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cave Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Fraunces:opsz,wght@9..144,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<div class="top"><a href="index.html">← Games</a><span class="stat">inspired by DARPA SubT</span></div>
+<h1>Cave Explorer</h1>
+<p class="lead">Explore an unknown cave with a limited battery. Your LiDAR only reveals what is in line of sight. Artifacts you find are reported to the base only when you are inside the comms range, so drop relays to extend it, just like the SubT breadcrumb nodes.</p>
+<canvas id="c" width="768" height="528"></canvas>
+<div class="panel stat" id="hud"></div>
+<div class="legend"><span><i style="background:#e0b84a"></i>artifact found</span><span><i style="background:#6fbf73"></i>reported</span><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.35)"></i>comms range</span></div>
+<p class="keys"><kbd>←↑↓→</kbd> or <kbd>WASD</kbd> move (1 battery per step) · <kbd>R</kbd> drop a relay (only inside comms range) · <kbd>N</kbd> new cave. Walk close to an artifact to detect it, then return to a comms zone to report it.</p>
+</div>
+<script>
+const GW=64,GH=44,CS=12,cv=document.getElementById('c'),x=cv.getContext('2d');
+const idx=(i,j)=>j*GW+i,inb=(i,j)=>i>0&&j>0&&i<GW-1&&j<GH-1;
+const COMMS=16,BATT=700,SENSE=9,NART=8;
+let wall,seen,vis,rob,base,relays,arts,battery,relayLeft,comms,state,steps;
+function genCave(){
+  for(;;){
+    wall=new Uint8Array(GW*GH);for(let k=0;k<GW*GH;k++){const i=k%GW,j=(k/GW)|0;wall[k]=(!inb(i,j)||Math.random()<.46)?1:0}
+    for(let it=0;it<5;it++){const n=wall.slice();for(let j=1;j<GH-1;j++)for(let i=1;i<GW-1;i++){let c=0;for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)c+=wall[idx(i+a,j+b)];n[idx(i,j)]=(c>=5)?1:0}wall=n}
+    // largest connected floor region
+    const lab=new Int32Array(GW*GH).fill(-1);let best=-1,bs=0,nl=0;
+    for(let k=0;k<GW*GH;k++){if(wall[k]||lab[k]>=0)continue;const st=[k];lab[k]=nl;let sz=0;while(st.length){const u=st.pop();sz++;const i=u%GW,j=(u/GW)|0;for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const v=idx(i+a,j+b);if(inb(i+a,j+b)&&!wall[v]&&lab[v]<0){lab[v]=nl;st.push(v)}}}
+      if(sz>bs){bs=sz;best=nl}nl++}
+    if(bs<700)continue;
+    for(let k=0;k<GW*GH;k++)if(!wall[k]&&lab[k]!=best)wall[k]=1;
+    // base: leftmost floor cell
+    let b=null;for(let i=1;i<GW-1&&!b;i++)for(let j=1;j<GH-1;j++)if(!wall[idx(i,j)]){b=[i,j];break}
+    base=b;
+    const d=bfs([base]);const far=[];for(let k=0;k<GW*GH;k++)if(!wall[k]&&d[k]>=20)far.push(k);
+    if(far.length<NART*4)continue;
+    arts=[];const pool=far.slice();while(arts.length<NART&&pool.length){const k=pool.splice(Math.random()*pool.length|0,1)[0],i=k%GW,j=(k/GW)|0;
+      if(arts.every(a=>Math.hypot(a.i-i,a.j-j)>9))arts.push({i,j,found:false,reported:false})}
+    if(arts.length<NART)continue;
+    break}
+  seen=new Uint8Array(GW*GH);rob=base.slice();relays=[];battery=BATT;relayLeft=4;state='play';steps=0;update()}
+function bfs(srcs,maxd=1e9){const d=new Int32Array(GW*GH).fill(-1),q=[];for(const s of srcs){d[idx(...s)]=0;q.push(s)}
+  for(let h=0;h<q.length;h++){const[i,j]=q[h],dd=d[idx(i,j)];if(dd>=maxd)continue;for(const[a,b]of[[1,0],[-1,0],[0,1],[0,-1]]){const ni=i+a,nj=j+b;if(!inb(ni,nj)||wall[idx(ni,nj)]||d[idx(ni,nj)]>=0)continue;d[idx(ni,nj)]=dd+1;q.push([ni,nj])}}return d}
+function los(x0,y0,x1,y1){let dx=Math.abs(x1-x0),dy=Math.abs(y1-y0),sx=x0<x1?1:-1,sy=y0<y1?1:-1,e=dx-dy;for(;;){if(x0==x1&&y0==y1)return true;if(wall[idx(x0,y0)]&&!(x0==rob[0]&&y0==rob[1]))return false;const e2=2*e;if(e2>-dy){e-=dy;x0+=sx}if(e2<dx){e+=dx;y0+=sy}}}
+function update(){
+  vis=new Uint8Array(GW*GH);
+  for(let j=Math.max(0,rob[1]-SENSE);j<=Math.min(GH-1,rob[1]+SENSE);j++)for(let i=Math.max(0,rob[0]-SENSE);i<=Math.min(GW-1,rob[0]+SENSE);i++){
+    if(Math.hypot(i-rob[0],j-rob[1])>SENSE)continue;
+    // visible if LOS to the cell (walls themselves are visible when they are the first blocker)
+    let ok=true,x0=rob[0],y0=rob[1],dx=Math.abs(i-x0),dy=Math.abs(j-y0),sx=x0<i?1:-1,sy=y0<j?1:-1,e=dx-dy;
+    for(;;){if(x0==i&&y0==j)break;const e2=2*e;if(e2>-dy){e-=dy;x0+=sx}if(e2<dx){e+=dx;y0+=sy}if(x0==i&&y0==j)break;if(wall[idx(x0,y0)]){ok=false;break}}
+    if(ok){vis[idx(i,j)]=1;seen[idx(i,j)]=1}}
+  const d=bfs([base,...relays],COMMS);comms=d;
+  for(const a of arts){if(!a.found&&Math.hypot(a.i-rob[0],a.j-rob[1])<=4&&vis[idx(a.i,a.j)])a.found=true;
+    if(a.found&&!a.reported&&comms[idx(rob[0],rob[1])]>=0)a.reported=true}
+  const rep=arts.filter(a=>a.reported).length;
+  if(rep==NART)state='won';else if(battery<=0)state='lost'}
+function move(a,b){if(state!='play')return;const ni=rob[0]+a,nj=rob[1]+b;if(!inb(ni,nj)||wall[idx(ni,nj)])return;rob=[ni,nj];battery--;steps++;update()}
+function relay(){if(state!='play'||relayLeft<=0)return;if(comms[idx(...rob)]<0)return;relays.push(rob.slice());relayLeft--;battery-=5;update()}
+function draw(){
+  x.fillStyle='#14150f';x.fillRect(0,0,cv.width,cv.height);
+  for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const k=idx(i,j);if(!seen[k])continue;
+    if(wall[k]){x.fillStyle=vis[k]?'#6b6a60':'#3f3f38'}else{x.fillStyle=vis[k]?'#c9c3ae':'#8f8b7a';}
+    x.fillRect(i*CS,j*CS,CS,CS);
+    if(!wall[k]&&comms[k]>=0){x.fillStyle='rgba(79,170,120,.28)';x.fillRect(i*CS,j*CS,CS,CS)}}
+  const dot=(i,j,c,r)=>{x.fillStyle=c;x.beginPath();x.arc(i*CS+CS/2,j*CS+CS/2,r,0,7);x.fill()};
+  dot(base[0],base[1],'#4aa3d8',CS*.55);for(const r of relays)dot(r[0],r[1],'#4aa3d8',CS*.35);
+  for(const a of arts){if(!a.found&&!(seen[idx(a.i,a.j)]&&vis[idx(a.i,a.j)]&&Math.hypot(a.i-rob[0],a.j-rob[1])<=4))continue;
+    x.fillStyle=a.reported?'#6fbf73':'#e0b84a';x.save();x.translate(a.i*CS+CS/2,a.j*CS+CS/2);x.rotate(.785);x.fillRect(-4,-4,8,8);x.restore()}
+  // sensor radius
+  x.strokeStyle='rgba(255,255,255,.18)';x.beginPath();x.arc(rob[0]*CS+CS/2,rob[1]*CS+CS/2,SENSE*CS,0,7);x.stroke();
+  dot(rob[0],rob[1],'#fff',CS*.45);dot(rob[0],rob[1],'#1a1a14',CS*.22);
+  if(state!='play'){x.fillStyle='rgba(0,0,0,.55)';x.fillRect(0,0,cv.width,cv.height);x.fillStyle='#fff';x.textAlign='center';x.font='500 28px DM Sans,sans-serif';
+    const rep=arts.filter(a=>a.reported).length;x.fillText(state=='won'?'All artifacts reported!':'Battery depleted',cv.width/2,cv.height/2-12);
+    x.font='17px DM Sans,sans-serif';x.fillText(state=='won'?`Finished with ${battery} battery left. Press N for a new cave.`:`Reported ${rep} of ${NART}. Press N to try a new cave.`,cv.width/2,cv.height/2+20)}}
+function hud(){const f=arts.filter(a=>a.found).length,r=arts.filter(a=>a.reported).length,inC=comms&&comms[idx(...rob)]>=0;
+  document.getElementById('hud').innerHTML=`Battery <b>${battery}</b> &nbsp; Found <b>${f}/${NART}</b> &nbsp; Reported <b>${r}/${NART}</b> &nbsp; Relays <b>${relayLeft}</b> left &nbsp; Comms <b style="color:${inC?'#4faa78':'#c8462a'}">${inC?'connected':'no link'}</b>`}
+function loop(){draw();hud();requestAnimationFrame(loop)}
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();const m={arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0],arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1]}[k];
+  if(m){move(...m);e.preventDefault()}else if(k=='r')relay();else if(k=='n')genCave()});
+genCave();loop();
+</script>
+</body>
+</html>

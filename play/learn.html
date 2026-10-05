@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Train a Tiny Robot</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500&family=Fraunces:opsz,wght@9..144,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+<div class="top"><a href="index.html">← Games</a><span class="stat">tabular Q-learning</span></div>
+<h1>Train a Tiny Robot</h1>
+<p class="lead">The robot starts knowing nothing and learns by trial and error to reach the goal. Draw walls and hazards, move the goal, and watch it re-learn. The floor is slippery: 10% of moves go in a random direction.</p>
+<canvas id="c" width="560" height="560"></canvas>
+<div class="bar"><button id="run" class="on">Pause</button><button id="reset">Reset learning</button><button id="clear">Clear map</button><button id="rand">Random map</button><button id="view">Show learned policy</button></div>
+<div class="bar"><span class="stat">Draw:</span><button id="m-wall" class="on">Walls</button><button id="m-haz">Hazards</button><button id="m-goal">Move goal</button></div>
+<div class="bar"><label class="stat">Speed <input type="range" id="speed" min="1" max="80" value="12"></label><label class="stat">Exploration <input type="range" id="eps" min="0" max="100" value="30"></label></div>
+<div class="panel stat">Episode <b id="ep">0</b> &nbsp; Last return <b id="ret">–</b> &nbsp; Steps <b id="st">–</b> &nbsp; Success (last 50) <b id="win">0%</b></div>
+<p class="keys">Reward: +1 at the goal, −0.01 per step, −0.5 on a hazard (red). The policy view shows the best known action in each cell and shaded cells show how valuable the robot thinks they are.</p>
+</div>
+<script>
+const N=14,cv=document.getElementById('c'),x=cv.getContext('2d'),C=cv.width/N,css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const A=[[0,-1],[1,0],[0,1],[-1,0]];
+let wall,haz,goal,start,Q,ep=0,pos,steps,ret,running=true,mode='wall',view=false,hist=[],trail=[];
+const id=(i,j)=>j*N+i,inb=(i,j)=>i>=0&&j>=0&&i<N&&j<N,$=i=>document.getElementById(i);
+function newEp(){pos=[...start];steps=0;ret=0;trail=[pos.slice()]}
+function resetPolicy(){Q=new Float32Array(N*N*4);ep=0;hist=[];newEp();$('ep').textContent=0;$('ret').textContent='–';$('st').textContent='–';$('win').textContent='0%'}
+function defaults(){wall=new Uint8Array(N*N);haz=new Uint8Array(N*N);start=[1,N-2];goal=[N-2,1];
+  for(let j=3;j<11;j++)wall[id(6,j)]=1;for(let i=3;i<10;i++)wall[id(i,7)]=1;wall[id(6,7)]=0;
+  for(let i=8;i<12;i++)haz[id(i,6)]=1;for(let j=2;j<5;j++)haz[id(10,j)]=1}
+function step(){
+  const s=id(...pos),eps=$('eps').value/100*Math.max(.05,1-ep/400)+.03;let a;
+  if(Math.random()<eps)a=Math.random()*4|0;else{let b=-1e9,bs=[];for(let k=0;k<4;k++){const q=Q[s*4+k];if(q>b+1e-6){b=q;bs=[k]}else if(Math.abs(q-b)<=1e-6)bs.push(k)}a=bs[Math.random()*bs.length|0]}
+  const real=Math.random()<.1?Math.random()*4|0:a;let ni=pos[0]+A[real][0],nj=pos[1]+A[real][1];
+  if(!inb(ni,nj)||wall[id(ni,nj)]){ni=pos[0];nj=pos[1]}
+  let r=-.01,done=false;if(haz[id(ni,nj)])r-=.5;if(ni==goal[0]&&nj==goal[1]){r=1;done=true}
+  const s2=id(ni,nj);let mx=-1e9;for(let k=0;k<4;k++)mx=Math.max(mx,Q[s2*4+k]);
+  Q[s*4+a]+=.2*(r+(done?0:.95*mx)-Q[s*4+a]);pos=[ni,nj];steps++;ret+=r;trail.push(pos.slice());if(trail.length>40)trail.shift();
+  if(done||steps>300){hist.push(done?1:0);if(hist.length>50)hist.shift();ep++;
+    $('ep').textContent=ep;$('ret').textContent=ret.toFixed(2);$('st').textContent=steps;$('win').textContent=Math.round(100*hist.reduce((p,q)=>p+q,0)/hist.length)+'%';newEp()}}
+function draw(){
+  const bg=css('--card'),ln=css('--line'),ac=css('--accent'),tx=css('--text'),mu=css('--mute');
+  x.fillStyle=bg;x.fillRect(0,0,cv.width,cv.height);
+  for(let j=0;j<N;j++)for(let i=0;i<N;i++){const k=id(i,j),px=i*C,py=j*C;
+    if(wall[k]){x.fillStyle=mu;x.fillRect(px,py,C,C)}
+    else{if(haz[k]){x.fillStyle='rgba(200,70,50,.4)';x.fillRect(px,py,C,C)}
+      else if(view){let m=-1e9;for(let a=0;a<4;a++)m=Math.max(m,Q[k*4+a]);x.globalAlpha=Math.max(0,Math.min(1,m))*.5;x.fillStyle=ac;x.fillRect(px,py,C,C);x.globalAlpha=1}}
+    x.strokeStyle=ln;x.strokeRect(px,py,C,C);
+    if(view&&!wall[k]&&!(i==goal[0]&&j==goal[1])){let b=0;for(let a=1;a<4;a++)if(Q[k*4+a]>Q[k*4+b])b=a;
+      if(Q[k*4+b]!=0){x.strokeStyle=tx;x.lineWidth=2;x.beginPath();const cx=px+C/2,cy=py+C/2;x.moveTo(cx-A[b][0]*C*.25,cy-A[b][1]*C*.25);x.lineTo(cx+A[b][0]*C*.25,cy+A[b][1]*C*.25);x.stroke();x.lineWidth=1}}}
+  x.fillStyle=ac;trail.forEach((p,t)=>{x.globalAlpha=t/trail.length*.4;x.fillRect(p[0]*C+C*.3,p[1]*C+C*.3,C*.4,C*.4)});x.globalAlpha=1;
+  x.fillStyle=ac;x.beginPath();x.arc(goal[0]*C+C/2,goal[1]*C+C/2,C*.36,0,7);x.fill();
+  x.fillStyle=tx;x.beginPath();x.arc(pos[0]*C+C/2,pos[1]*C+C/2,C*.3,0,7);x.fill();x.fillStyle=bg;x.fillRect(pos[0]*C+C*.38,pos[1]*C+C*.38,C*.24,C*.24)}
+function loop(){if(running){const n=+$('speed').value;for(let k=0;k<n;k++)step()}draw();requestAnimationFrame(loop)}
+let down=false,pv=1;
+function cell(e){const r=cv.getBoundingClientRect();return[((e.clientX-r.left)/r.width*N)|0,((e.clientY-r.top)/r.height*N)|0]}
+function paint(e){const[i,j]=cell(e);if(!inb(i,j)||(i==goal[0]&&j==goal[1])||(i==start[0]&&j==start[1]))return;
+  if(mode=='goal'){goal=[i,j];wall[id(i,j)]=0;haz[id(i,j)]=0;Q.fill(0);newEp();return}
+  const arr=mode=='wall'?wall:haz,o=mode=='wall'?haz:wall;arr[id(i,j)]=pv;o[id(i,j)]=0;Q.fill(0);newEp()}
+cv.addEventListener('pointerdown',e=>{down=true;const[i,j]=cell(e);if(inb(i,j))pv=((mode=='wall'?wall:haz)[id(i,j)])?0:1;paint(e)});
+addEventListener('pointerup',()=>down=false);cv.addEventListener('pointermove',e=>{if(down&&mode!='goal')paint(e)});
+$('run').onclick=e=>{running=!running;e.target.textContent=running?'Pause':'Run';e.target.classList.toggle('on',running)};
+$('reset').onclick=resetPolicy;$('clear').onclick=()=>{wall.fill(0);haz.fill(0);resetPolicy()};
+$('rand').onclick=()=>{wall.fill(0);haz.fill(0);for(let k=0;k<N*N;k++){const i=k%N,j=k/N|0;if((i==start[0]&&j==start[1])||(i==goal[0]&&j==goal[1]))continue;const r=Math.random();if(r<.18)wall[k]=1;else if(r<.26)haz[k]=1}resetPolicy()};
+['wall','haz','goal'].forEach(m=>$('m-'+m).onclick=()=>{mode=m;['wall','haz','goal'].forEach(q=>$('m-'+q).classList.toggle('on',q==m))});
+$('view').onclick=e=>{view=!view;e.target.classList.toggle('on',view)};
+defaults();resetPolicy();loop();
+</script>
+</body>
+</html>
