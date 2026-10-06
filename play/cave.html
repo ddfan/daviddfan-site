@@ -11,9 +11,9 @@
 <div class="wrap">
 <div class="top"><a href="../index.html">← Home</a><span class="stat">inspired by DARPA SubT</span></div>
 <h1>Mine Explorer</h1>
-<p class="lead">Map the mine with four robots in two minutes. Click a robot, then click the map.</p>
+<p class="lead">Map the mine with eight robots in two minutes. Click a robot, then click the map.</p>
 <div class="stage">
-<canvas id="c" width="768" height="480"></canvas>
+<canvas id="c" width="960" height="600"></canvas>
 <div class="robots" id="robots"></div>
 <div class="chips">
   <div class="chip"><span>Time left</span><b id="s-time">2:00</b></div>
@@ -27,14 +27,14 @@
   <label class="stat" style="margin-left:auto">Return reserve <b id="rtcv">12%</b> <input type="range" id="rtc" min="0" max="40" value="12" style="vertical-align:middle;width:120px"></label>
 </div>
 </div>
-<div class="legend" style="margin-top:14px"><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.55)"></i>comms range</span><span><i style="background:#6fbf73"></i>reported</span><span><i style="background:#c8462a"></i>no link</span></div>
-<p class="keys">Robots explore on their own, drop relays, and head back when battery runs low. Findings upload only in comms range. <kbd>1</kbd>–<kbd>4</kbd> select · <kbd>R</kbd> recall · <kbd>Space</kbd> pause · <kbd>N</kbd> restart</p>
+<div class="legend" style="margin-top:14px"><span><i style="background:#4aa3d8"></i>base / relay</span><span><i style="background:rgba(79,170,120,.55)"></i>comms range</span><span><i style="background:#6fbf73"></i>reported</span><span><i style="background:#c8462a"></i>no link (flashing = last known position)</span></div>
+<p class="keys">Robots explore on their own, drop relays, and head back when battery runs low. Findings upload only in comms range. <kbd>1</kbd>–<kbd>8</kbd> select · <kbd>R</kbd> recall · <kbd>Space</kbd> pause · <kbd>N</kbd> restart</p>
 </div>
 <script>
-const GW=128,GH=80,CS=6,cv=document.getElementById('c'),x=cv.getContext('2d');
+const GW=192,GH=120,CS=5,cv=document.getElementById('c'),x=cv.getContext('2d');
 const idx=(i,j)=>j*GW+i,inb=(i,j)=>i>0&&j>0&&i<GW-1&&j<GH-1,$=i=>document.getElementById(i);
-const COMMS=15,BATT=330,IDLE_DRAIN=.25,MOVE_DRAIN=1,RELAYS=4,SENSE=6,NART=10,NROB=4,GR=3,TPS=7,TICK=1/TPS,MISSION=120,MAXT=MISSION*TPS;
-const RCOL=['#e0b84a','#e9805a','#b78cd8','#5cc4b5'];
+const COMMS=15,BATT=640,IDLE_DRAIN=.25,MOVE_DRAIN=1,RELAYS=4,SENSE=6,NART=16,NROB=8,GR=3,TPS=7,TICK=1/TPS,MISSION=120,MAXT=MISSION*TPS;
+const RCOL=['#e0b84a','#e9805a','#b78cd8','#5cc4b5','#7fa6e8','#d97aa6','#9bd06a','#c9a27a'],SLOT=[[-2,-2],[0,-2],[2,-2],[-2,0],[2,0],[-2,2],[0,2],[2,2]];
 let wall,seen,rooms,base,arts,robots,nodes,comms,sel=0,state,tickAcc=0,ticks=0,speed=1,paused=false,msg='',msgT=0,floorTotal=0,best=0,rtc=12,cards=[],started=false;
 try{best=+localStorage.getItem('mineBest')||0}catch(e){}
 const rnd=n=>Math.floor(Math.random()*n);
@@ -49,26 +49,26 @@ function genMine(){
     wall=new Uint8Array(GW*GH).fill(1);rooms=[];
     const mk=(x,y,w,h)=>({x,y,w,h,cx:x+(w>>1),cy:y+(h>>1)});
     rooms.push(mk(3,GH/2-4,11,9));
-    for(let t=0;t<600&&rooms.length<18;t++){const w=7+rnd(8),h=6+rnd(6),r=mk(2+rnd(GW-w-4),2+rnd(GH-h-4),w,h);
+    for(let t=0;t<1500&&rooms.length<28;t++){const w=7+rnd(8),h=6+rnd(6),r=mk(2+rnd(GW-w-4),2+rnd(GH-h-4),w,h);
       if(rooms.every(o=>r.x>o.x+o.w+5||r.x+r.w+5<o.x||r.y>o.y+o.h+5||r.y+r.h+5<o.y))rooms.push(r)}
-    if(rooms.length<12)continue;
+    if(rooms.length<18)continue;
     for(const r of rooms)carveRect(r.x,r.y,r.x+r.w-1,r.y+r.h-1);
     const inT=[0],edges=[];while(inT.length<rooms.length){let b2=null;for(const a of inT)for(let b=0;b<rooms.length;b++){if(inT.includes(b))continue;const d=Math.abs(rooms[a].cx-rooms[b].cx)+Math.abs(rooms[a].cy-rooms[b].cy);if(!b2||d<b2.d)b2={a,b,d}}inT.push(b2.b);edges.push(b2)}
     for(const e of edges)corridor(rooms[e.a].cx,rooms[e.a].cy,rooms[e.b].cx,rooms[e.b].cy);
-    for(let k=0;k<4;k++){const a=rnd(rooms.length),b=rnd(rooms.length);if(a!=b)corridor(rooms[a].cx,rooms[a].cy,rooms[b].cx,rooms[b].cy)}
-    const stubs=[];for(let k=0;k<11;k++){const r=rooms[1+rnd(rooms.length-1)],dir=[[1,0],[-1,0],[0,1],[0,-1]][rnd(4)],len=9+rnd(12);
+    for(let k=0;k<7;k++){const a=rnd(rooms.length),b=rnd(rooms.length);if(a!=b)corridor(rooms[a].cx,rooms[a].cy,rooms[b].cx,rooms[b].cy)}
+    const stubs=[];for(let k=0;k<18;k++){const r=rooms[1+rnd(rooms.length-1)],dir=[[1,0],[-1,0],[0,1],[0,-1]][rnd(4)],len=9+rnd(12);
       let px=r.cx,py=r.cy;while(!wall[idx(px,py)])px+=dir[0],py+=dir[1];px-=dir[0];py-=dir[1];if(!inb(px,py))continue;
       const ex=px+dir[0]*len,ey=py+dir[1]*len;if(!inb(ex,ey)||!inb(ex+dir[0]*2,ey+dir[1]*2))continue;
       if(dir[0])carveRect(Math.min(px,ex),py-1,Math.max(px,ex),py+1);else carveRect(px-1,Math.min(py,ey),px+1,Math.max(py,ey));stubs.push([ex,ey])}
     for(const r of rooms.slice(1))if(r.w>=10&&r.h>=8){const px=r.x+2+rnd(r.w-5),py=r.y+2+rnd(r.h-5);if(Math.abs(px-r.cx)+Math.abs(py-r.cy)>3){for(let a=0;a<2;a++)for(let b=0;b<2;b++)wall[idx(px+a,py+b)]=1}}
     base=[rooms[0].cx,rooms[0].cy];wall[idx(...base)]=0;
     const d=bfs([base]);floorTotal=0;for(let k=0;k<GW*GH;k++)if(!wall[k]&&d[k]>=0)floorTotal++;
-    const cand=[];for(const r of rooms.slice(1))for(let t=0;t<3;t++)cand.push([r.x+1+rnd(r.w-2),r.y+1+rnd(r.h-2)]);for(const s of stubs)cand.push(s);
-    arts=[];for(const c of cand.sort(()=>Math.random()-.5)){if(wall[idx(...c)]||d[idx(...c)]<22)continue;if(arts.every(a=>Math.hypot(a.i-c[0],a.j-c[1])>9))arts.push({i:c[0],j:c[1],reported:false});if(arts.length>=NART)break}
+    const cand=[];for(const r of rooms.slice(1))for(let t=0;t<4;t++)cand.push([r.x+1+rnd(r.w-2),r.y+1+rnd(r.h-2)]);for(const s of stubs)cand.push(s);
+    arts=[];for(const c of cand.sort(()=>Math.random()-.5)){if(wall[idx(...c)]||d[idx(...c)]<22)continue;if(arts.every(a=>Math.hypot(a.i-c[0],a.j-c[1])>11))arts.push({i:c[0],j:c[1],reported:false});if(arts.length>=NART)break}
     if(arts.length<NART)continue;
     break}
   seen=new Uint8Array(GW*GH);
-  robots=[];for(let n=0;n<NROB;n++){const px=base[0]-1+(n%2)*2,py=base[1]-1+((n/2)|0)*2;
+  robots=[];for(let n=0;n<NROB;n++){const px=base[0]+SLOT[n][0],py=base[1]+SLOT[n][1];
     robots.push({id:n,x:px,y:py,battery:BATT,relays:RELAYS,goal:null,path:[],state:'idle',alive:true,know:new Uint8Array(GW*GH),dirty:new Set(),found:new Set(),link:true,outTicks:0,returning:false,explore:false,ex:null,lastLink:[px,py],tel:{state:'idle',battery:BATT,relays:RELAYS}})}
   nodes=[base.slice()];comms=bfs(nodes,COMMS);sel=0;state='play';started=false;ticks=0;tickAcc=0;paused=false;msgT=0;
   $('pause').textContent='Pause';$('pause').classList.remove('on');
@@ -147,8 +147,9 @@ function draw(){
   x.fillStyle='#4aa3d8';x.fillRect(base[0]*CS-3,base[1]*CS-3,CS+6,CS+6);for(const n of nodes.slice(1)){x.beginPath();x.arc(n[0]*CS+CS/2,n[1]*CS+CS/2,CS*.38,0,7);x.fill()}
   for(const a of arts)if(a.reported){x.fillStyle='#6fbf73';x.save();x.translate(a.i*CS+CS/2,a.j*CS+CS/2);x.rotate(.785);x.fillRect(-4,-4,8,8);x.restore()}
   robots.forEach(r=>{
-    if(!r.link){const lx=r.lastLink[0]*CS+CS/2,ly=r.lastLink[1]*CS+CS/2;x.strokeStyle=RCOL[r.id];x.globalAlpha=.55;x.setLineDash([2,3]);x.beginPath();x.arc(lx,ly,6,0,7);x.stroke();x.setLineDash([]);
-      x.fillStyle=RCOL[r.id];x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText('?',lx,ly+3);x.globalAlpha=1;return}   // last place we had contact
+    if(!r.link){const lx=r.lastLink[0]*CS+CS/2,ly=r.lastLink[1]*CS+CS/2,f=.5+.5*Math.sin(performance.now()/180+r.id); // ghost at the last place we had contact
+      x.globalAlpha=.2+.55*f;x.fillStyle=RCOL[r.id];x.beginPath();x.arc(lx,ly,5,0,7);x.fill();x.strokeStyle='#c8462a';x.lineWidth=1.5;x.beginPath();x.arc(lx,ly,7.5,0,7);x.stroke();x.lineWidth=1;
+      x.fillStyle='#1a1a14';x.font='700 8px DM Sans,sans-serif';x.textAlign='center';x.fillText(r.id+1,lx,ly+3);x.globalAlpha=1;return}
     const cx=r.x*CS+CS/2,cy=r.y*CS+CS/2;
     if(!r.alive){x.strokeStyle='#888';x.lineWidth=2;x.beginPath();x.moveTo(cx-4,cy-4);x.lineTo(cx+4,cy+4);x.moveTo(cx+4,cy-4);x.lineTo(cx-4,cy+4);x.stroke();x.lineWidth=1;return}
     x.fillStyle=RCOL[r.id];x.beginPath();x.arc(cx,cy,5,0,7);x.fill();
@@ -184,7 +185,7 @@ $('pause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume':'Paus
 $('recall').onclick=recall;$('restart').onclick=genMine;
 $('rtc').oninput=e=>{rtc=+e.target.value;$('rtcv').textContent=rtc+'%'};
 function recall(){const r=robots[sel];if(!r||!r.alive||state!='play')return;if(!r.link){msg='Robot '+(r.id+1)+' is out of range and cannot be commanded';msgT=2.2;return}r.goal=base.slice();r.path=[];r.state='moving';r.returning=false;r.explore=false;r.ex=null;started=true}
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k>='1'&&k<='4'){sel=+k-1;updateUI()}else if(k==' '){e.preventDefault();$('pause').click()}else if(k=='r')recall();else if(k=='n')genMine()});
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k>='1'&&k<='8'){sel=+k-1;updateUI()}else if(k==' '){e.preventDefault();$('pause').click()}else if(k=='r')recall();else if(k=='n')genMine()});
 genMine();requestAnimationFrame(loop);
 </script>
 </body>
